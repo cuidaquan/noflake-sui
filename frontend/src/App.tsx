@@ -12,10 +12,11 @@ import {
   Wallet,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useCurrentAccount, useCurrentWallet } from "@mysten/dapp-kit-react";
+import { useCurrentAccount, useCurrentNetwork, useCurrentWallet } from "@mysten/dapp-kit-react";
 import { ConnectButton } from "@mysten/dapp-kit-react/ui";
 import type { DAppKit } from "@mysten/dapp-kit-core";
 import type { Transaction } from "@mysten/sui/transactions";
+import type { SuiJsonRpcClient } from "@mysten/sui/jsonRpc";
 import type { EventSnapshot, ReservationSnapshot } from "./api/client";
 import { fetchEventSnapshot } from "./api/client";
 import {
@@ -26,8 +27,10 @@ import {
   deriveNoShowCount,
   eventStatusLabel,
   formatShortAddress,
+  selectReserveCoin,
   reservationStatusLabel,
   settlementModeLabel,
+  type CoinSnapshot,
 } from "./sui";
 
 type ViewMode = "host" | "event" | "reservation";
@@ -90,6 +93,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
   const [txMessage, setTxMessage] = useState("Ready for testnet transactions.");
 
   const account = useCurrentAccount({ dAppKit });
+  const currentNetwork = useCurrentNetwork({ dAppKit });
   const currentWallet = useCurrentWallet({ dAppKit });
 
   useEffect(() => {
@@ -144,6 +148,45 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
       setTxState("error");
       setTxMessage(error instanceof Error ? error.message : `${actionLabel} failed.`);
     }
+  }
+
+  async function handleReserve() {
+    if (!account) {
+      setTxMessage("Connect a wallet first.");
+      setTxState("error");
+      return;
+    }
+
+    if (!packageId) {
+      setTxMessage("Set VITE_NOFLAKE_PACKAGE_ID before using transactions.");
+      setTxState("error");
+      return;
+    }
+
+    setTxState("building");
+    setTxMessage("Reserve: searching for Circle testnet USDC coin.");
+
+    const client = dAppKit.getClient(currentNetwork) as SuiJsonRpcClient;
+    const coins = await client.getCoins({
+      owner: account.address,
+      coinType,
+    });
+
+    const reserveCoin = selectReserveCoin(coins.data as CoinSnapshot[], coinType, event.depositAmount);
+    if (!reserveCoin) {
+      setTxState("error");
+      setTxMessage("No usable Circle testnet USDC coin found.");
+      return;
+    }
+
+    await execute(
+      buildReserveTransaction(txConfig, {
+        eventObjectId: event.objectId,
+        vaultObjectId: event.vaultObjectId,
+        depositCoinObjectId: reserveCoin.coinObjectId,
+      }),
+      "Reserve",
+    );
   }
 
   const noShowCount = deriveNoShowCount(event);
@@ -225,16 +268,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
         ) : viewMode === "event" ? (
           <PublicEvent
             event={event}
-            onReserve={() =>
-              execute(
-                buildReserveTransaction(txConfig, {
-                  eventObjectId: event.objectId,
-                  vaultObjectId: event.vaultObjectId,
-                  depositCoinObjectId: "0xcoin",
-                }),
-                "Reserve",
-              )
-            }
+            onReserve={handleReserve}
           />
         ) : (
           <ReservationPage event={event} reservation={selectedReservation} />

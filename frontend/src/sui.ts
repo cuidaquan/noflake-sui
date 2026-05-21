@@ -13,6 +13,14 @@ export interface ReservationSnapshot {
   updatedDigest: string;
 }
 
+export interface CoinSnapshot {
+  coinObjectId: string;
+  coinType: string;
+  balance: string;
+  digest: string;
+  version: string;
+}
+
 export interface SettlementSnapshot {
   objectId: string;
   eventObjectId: string;
@@ -173,4 +181,13 @@ export function formatShortAddress(address: string): string {
 
 export function deriveNoShowCount(event: EventSnapshot): number {
   return Math.max(0, event.reservedCount - event.checkedInCount);
+}
+
+export function selectReserveCoin(coins: CoinSnapshot[], coinType: string, depositAmount: bigint | number | string): CoinSnapshot | null {
+  const required = BigInt(depositAmount);
+  return (
+    coins
+      .filter((coin) => coin.coinType === coinType && BigInt(coin.balance) >= required)
+      .sort((left, right) => BigInt(left.balance) > BigInt(right.balance) ? 1 : -1)[0] ?? null
+  );
 }
