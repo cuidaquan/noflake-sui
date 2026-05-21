@@ -2,12 +2,15 @@
   "name": "noflake-sui",
   "private": true,
   "workspaces": [
+    "backend",
     "frontend"
   ],
   "scripts": {
     "dev": "npm run dev -w frontend",
-    "build": "npm run build -w frontend",
+    "dev:backend": "npm run dev -w backend",
+    "build": "npm run build -w backend && npm run build -w frontend",
     "lint": "npm run lint -w frontend",
+    "test:backend": "npm run test -w backend",
     "move:build": "powershell -ExecutionPolicy Bypass -File scripts/sui.ps1 move build --path contracts"
   }
 }
