@@ -1,0 +1,6 @@
+[package]
+name = "noflake"
+edition = "2024.beta"
+
+[addresses]
+noflake = "0x0"

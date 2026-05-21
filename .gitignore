@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+.vite/
+.turbo/
+.env
+.env.local
+.env.*.local
+
+contracts/build/
+contracts/.coverage_map.mvcov
+contracts/.trace
+
+.DS_Store
+Thumbs.db
