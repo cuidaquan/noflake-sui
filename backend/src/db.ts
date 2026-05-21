@@ -35,13 +35,14 @@ export function createDatabase(path: string): NoFlakeDatabase {
     upsertEvent: (event) => {
       db.prepare(
         `insert into events (
-          object_id, host_address, title, deposit_amount, seat_count, reserved_count,
+          object_id, vault_object_id, host_address, title, deposit_amount, seat_count, reserved_count,
           checked_in_count, settlement_mode, status, updated_digest
         ) values (
-          @objectId, @hostAddress, @title, @depositAmount, @seatCount, @reservedCount,
+          @objectId, @vaultObjectId, @hostAddress, @title, @depositAmount, @seatCount, @reservedCount,
           @checkedInCount, @settlementMode, @status, @updatedDigest
         )
         on conflict(object_id) do update set
+          vault_object_id = excluded.vault_object_id,
           host_address = excluded.host_address,
           title = excluded.title,
           deposit_amount = excluded.deposit_amount,
@@ -95,6 +96,7 @@ function migrate(db: SqliteDatabase): void {
     create table if not exists events (
       object_id text primary key,
       host_address text not null,
+      vault_object_id text not null,
       title text not null,
       deposit_amount text not null,
       seat_count integer not null,
@@ -129,6 +131,7 @@ function migrate(db: SqliteDatabase): void {
 
 interface EventRow {
   object_id: string;
+  vault_object_id: string;
   host_address: string;
   title: string;
   deposit_amount: string;
@@ -163,6 +166,7 @@ interface SettlementRow {
 function mapEvent(row: EventRow): CachedEvent {
   return {
     objectId: row.object_id,
+    vaultObjectId: row.vault_object_id,
     hostAddress: row.host_address,
     title: row.title,
     depositAmount: row.deposit_amount,

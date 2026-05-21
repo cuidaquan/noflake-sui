@@ -24,6 +24,7 @@ export interface SettlementSnapshot {
 
 export interface EventSnapshot {
   objectId: string;
+  vaultObjectId: string;
   hostAddress: string;
   title: string;
   depositAmount: string;

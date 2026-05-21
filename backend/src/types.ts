@@ -4,6 +4,7 @@ export type ReservationStatus = "reserved" | "cancelled" | "checked_in_refunded"
 
 export interface CachedEvent {
   objectId: string;
+  vaultObjectId: string;
   hostAddress: string;
   title: string;
   depositAmount: string;

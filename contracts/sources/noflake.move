@@ -76,7 +76,9 @@ public struct SettlementReceipt has key, store {
 
 public struct EventCreated has copy, drop {
     event_id: ID,
+    vault_id: ID,
     host: address,
+    title: String,
     deposit_amount: u64,
     seat_count: u64,
     settlement_mode: u8,
@@ -206,7 +208,9 @@ public fun create_event<T>(
 
     event::emit(EventCreated {
         event_id,
+        vault_id: object::id(&vault),
         host,
+        title,
         deposit_amount,
         seat_count,
         settlement_mode,

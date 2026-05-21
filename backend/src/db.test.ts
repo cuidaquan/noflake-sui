@@ -7,6 +7,7 @@ describe("database cache", () => {
 
     db.upsertEvent({
       objectId: "0xevent",
+      vaultObjectId: "0xvault",
       hostAddress: "0xhost",
       title: "Sui Builder Dinner",
       depositAmount: "20",
@@ -39,6 +40,7 @@ describe("database cache", () => {
     });
 
     expect(db.getEvent("0xevent")?.reservedCount).toBe(1);
+    expect(db.getEvent("0xevent")?.vaultObjectId).toBe("0xvault");
     expect(db.getReservationsForEvent("0xevent")).toHaveLength(1);
     expect(db.getSettlementForEvent("0xevent")?.forfeitedAmount).toBe("20");
   });

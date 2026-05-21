@@ -3,17 +3,35 @@ import {
   CalendarPlus,
   CircleDollarSign,
   ClipboardCheck,
+  Copy,
   LinkIcon,
   QrCode,
   RefreshCw,
   ScanLine,
   ShieldCheck,
-  Users,
   Wallet,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import type { EventSnapshot, ReservationSnapshot, SettlementMode } from "./api/client";
+import { useEffect, useMemo, useState } from "react";
+import { useCurrentAccount, useCurrentWallet } from "@mysten/dapp-kit-react";
+import { ConnectButton } from "@mysten/dapp-kit-react/ui";
+import type { DAppKit } from "@mysten/dapp-kit-core";
+import type { Transaction } from "@mysten/sui/transactions";
+import type { EventSnapshot, ReservationSnapshot } from "./api/client";
 import { fetchEventSnapshot } from "./api/client";
+import {
+  buildCheckInTransaction,
+  buildCreateEventTransaction,
+  buildReserveTransaction,
+  buildSettleEventTransaction,
+  deriveNoShowCount,
+  eventStatusLabel,
+  formatShortAddress,
+  reservationStatusLabel,
+  settlementModeLabel,
+} from "./sui";
+
+type ViewMode = "host" | "event" | "reservation";
+type TxState = "idle" | "building" | "signing" | "success" | "error";
 
 const sampleReservations: ReservationSnapshot[] = [
   {
@@ -44,6 +62,7 @@ const sampleReservations: ReservationSnapshot[] = [
 
 const sampleEvent: EventSnapshot = {
   objectId: "0xevent_9f3a",
+  vaultObjectId: "0xvault_9f3a",
   hostAddress: "0xhost...dinner",
   title: "Sui Builder Dinner",
   depositAmount: "20",
@@ -57,11 +76,21 @@ const sampleEvent: EventSnapshot = {
   settlement: null,
 };
 
-export default function App() {
-  const [event, setEvent] = useState<EventSnapshot>(sampleEvent);
-  const [activeView, setActiveView] = useState<"host" | "event" | "reservation">("host");
+const packageId = import.meta.env.VITE_NOFLAKE_PACKAGE_ID ?? "";
+const coinType =
+  import.meta.env.VITE_NOFLAKE_COIN_TYPE ??
+  "0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC";
+
+export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
+  const [event, setEvent] = useState(sampleEvent);
+  const [viewMode, setViewMode] = useState<ViewMode>("host");
   const [selectedReservationId, setSelectedReservationId] = useState(sampleReservations[1].objectId);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">("idle");
+  const [txState, setTxState] = useState<TxState>("idle");
+  const [txMessage, setTxMessage] = useState("Ready for testnet transactions.");
+
+  const account = useCurrentAccount({ dAppKit });
+  const currentWallet = useCurrentWallet({ dAppKit });
 
   useEffect(() => {
     const eventId = new URLSearchParams(window.location.search).get("event");
@@ -81,17 +110,56 @@ export default function App() {
     event.reservations.find((reservation) => reservation.objectId === selectedReservationId) ??
     event.reservations[0];
 
+  const txConfig = useMemo(
+    () => ({
+      packageId,
+      coinType,
+    }),
+    [],
+  );
+
+  async function execute(transaction: Transaction, actionLabel: string) {
+    if (!account) {
+      setTxMessage("Connect a wallet first.");
+      setTxState("error");
+      return;
+    }
+
+    if (!packageId) {
+      setTxMessage("Set VITE_NOFLAKE_PACKAGE_ID before using transactions.");
+      setTxState("error");
+      return;
+    }
+
+    try {
+      setTxState("building");
+      setTxMessage(`${actionLabel}: building transaction.`);
+      transaction.setSender(account.address);
+      setTxState("signing");
+      setTxMessage(`${actionLabel}: waiting for wallet signature.`);
+      await dAppKit.signAndExecuteTransaction({ transaction });
+      setTxState("success");
+      setTxMessage(`${actionLabel}: transaction submitted.`);
+    } catch (error) {
+      setTxState("error");
+      setTxMessage(error instanceof Error ? error.message : `${actionLabel} failed.`);
+    }
+  }
+
+  const noShowCount = deriveNoShowCount(event);
+  const vaultBalance = noShowCount * Number(event.depositAmount);
+
   return (
     <main className="app-shell">
       <aside className="rail">
         <div className="brand-mark">NF</div>
-        <button className={activeView === "host" ? "rail-button active" : "rail-button"} onClick={() => setActiveView("host")} title="Host dashboard">
+        <button className={viewMode === "host" ? "rail-button active" : "rail-button"} onClick={() => setViewMode("host")} title="Host dashboard">
           <ClipboardCheck size={19} />
         </button>
-        <button className={activeView === "event" ? "rail-button active" : "rail-button"} onClick={() => setActiveView("event")} title="Public event page">
+        <button className={viewMode === "event" ? "rail-button active" : "rail-button"} onClick={() => setViewMode("event")} title="Public event page">
           <LinkIcon size={19} />
         </button>
-        <button className={activeView === "reservation" ? "rail-button active" : "rail-button"} onClick={() => setActiveView("reservation")} title="Reservation page">
+        <button className={viewMode === "reservation" ? "rail-button active" : "rail-button"} onClick={() => setViewMode("reservation")} title="Reservation page">
           <QrCode size={19} />
         </button>
       </aside>
@@ -100,20 +168,74 @@ export default function App() {
         <header className="topbar">
           <div>
             <p className="eyebrow">NoFlake on Sui</p>
-            <h1>{activeView === "host" ? "Host operations" : activeView === "event" ? "Public reservation" : "Attendee check-in"}</h1>
+            <h1>{viewMode === "host" ? "Host operations" : viewMode === "event" ? "Public reservation" : "Attendee check-in"}</h1>
           </div>
-          <div className="network-chip">
-            <span />
-            Sui testnet
+          <div className="topbar-actions">
+            <div className="network-chip">
+              <span />
+              Sui testnet
+            </div>
+            <ConnectButton />
           </div>
         </header>
 
         {loadState === "error" ? <div className="notice">Backend cache unavailable. Showing demo state.</div> : null}
+        {txState !== "idle" ? <div className={`notice notice-${txState}`}>{txMessage}</div> : null}
 
-        {activeView === "host" ? (
-          <HostDashboard event={event} onSelectReservation={setSelectedReservationId} />
-        ) : activeView === "event" ? (
-          <PublicEvent event={event} />
+        <StatusStrip account={account?.address ?? null} walletName={currentWallet?.name ?? null} event={event} />
+
+        {viewMode === "host" ? (
+          <HostDashboard
+            event={event}
+            txConfig={txConfig}
+            onSelectReservation={setSelectedReservationId}
+            onCreateEvent={() =>
+              execute(
+                buildCreateEventTransaction(txConfig, {
+                  title: event.title,
+                  startMs: 1_700_000_000_000,
+                  endMs: 1_700_000_360_000,
+                  depositAmount: Number(event.depositAmount),
+                  seatCount: event.seatCount,
+                  settlementMode: event.settlementMode,
+                }),
+                "Create event",
+              )
+            }
+            onSettle={() =>
+              execute(
+                buildSettleEventTransaction(txConfig, {
+                  eventObjectId: event.objectId,
+                  vaultObjectId: event.vaultObjectId,
+                }),
+                "Settle event",
+              )
+            }
+            onCheckIn={(reservation) =>
+              execute(
+                buildCheckInTransaction(txConfig, {
+                  eventObjectId: event.objectId,
+                  vaultObjectId: event.vaultObjectId,
+                  reservationObjectId: reservation.objectId,
+                }),
+                "Check in and refund",
+              )
+            }
+          />
+        ) : viewMode === "event" ? (
+          <PublicEvent
+            event={event}
+            onReserve={() =>
+              execute(
+                buildReserveTransaction(txConfig, {
+                  eventObjectId: event.objectId,
+                  vaultObjectId: event.vaultObjectId,
+                  depositCoinObjectId: "0xcoin",
+                }),
+                "Reserve",
+              )
+            }
+          />
         ) : (
           <ReservationPage event={event} reservation={selectedReservation} />
         )}
@@ -122,14 +244,54 @@ export default function App() {
   );
 }
 
+function StatusStrip({
+  account,
+  walletName,
+  event,
+}: {
+  account: string | null;
+  walletName: string | null;
+  event: EventSnapshot;
+}) {
+  return (
+    <section className="status-strip">
+      <div>
+        <span>Wallet</span>
+        <strong>{account ? formatShortAddress(account) : "Not connected"}</strong>
+        <p>{walletName ?? "Connect to execute transactions"}</p>
+      </div>
+      <div>
+        <span>Event</span>
+        <strong>{eventStatusLabel(event.status)}</strong>
+        <p>{settlementModeLabel(event.settlementMode)}</p>
+      </div>
+      <div>
+        <span>Seats</span>
+        <strong>
+          {event.reservedCount}/{event.seatCount}
+        </strong>
+        <p>{deriveNoShowCount(event)} no-shows remain in vault</p>
+      </div>
+    </section>
+  );
+}
+
 function HostDashboard({
   event,
+  txConfig,
   onSelectReservation,
+  onCreateEvent,
+  onCheckIn,
+  onSettle,
 }: {
   event: EventSnapshot;
+  txConfig: { packageId: string; coinType: string };
   onSelectReservation: (reservationId: string) => void;
+  onCreateEvent: () => void;
+  onCheckIn: (reservation: ReservationSnapshot) => void;
+  onSettle: () => void;
 }) {
-  const noShowCount = event.reservedCount - event.checkedInCount;
+  const noShowCount = deriveNoShowCount(event);
   const vaultBalance = noShowCount * Number(event.depositAmount);
 
   return (
@@ -157,25 +319,25 @@ function HostDashboard({
             </select>
           </label>
         </div>
-        <button className="primary-action">
+        <button className="primary-action" onClick={onCreateEvent} disabled={!txConfig.packageId}>
           <Wallet size={18} />
           Build create-event transaction
         </button>
       </section>
 
       <section className="metrics-strip">
-        <Metric icon={<Users size={18} />} label="Reserved" value={`${event.reservedCount}/${event.seatCount}`} />
         <Metric icon={<BadgeCheck size={18} />} label="Checked in" value={event.checkedInCount} />
         <Metric icon={<CircleDollarSign size={18} />} label="Vault" value={`${vaultBalance} USDC`} />
-        <Metric icon={<ShieldCheck size={18} />} label="Mode" value={modeLabel(event.settlementMode)} />
+        <Metric icon={<ShieldCheck size={18} />} label="Mode" value={settlementModeLabel(event.settlementMode)} />
+        <Metric icon={<Copy size={18} />} label="Package" value={txConfig.packageId ? formatShortAddress(txConfig.packageId) : "unset"} />
       </section>
 
       <section className="control-panel reservation-list">
-        <PanelTitle icon={<Users size={18} />} title="Reservations" />
+        <PanelTitle icon={<ClipboardCheck size={18} />} title="Reservations" />
         <div className="table">
           {event.reservations.map((reservation) => (
             <button key={reservation.objectId} className="table-row" onClick={() => onSelectReservation(reservation.objectId)}>
-              <span>{reservation.attendeeAddress}</span>
+              <span>{formatShortAddress(reservation.attendeeAddress)}</span>
               <span>{reservation.depositAmount} USDC</span>
               <StatusPill status={reservation.status} />
             </button>
@@ -190,9 +352,9 @@ function HostDashboard({
           <div className="scan-bars" />
         </div>
         <div className="confirm-sheet">
-          <span>0x2a91...b771</span>
+          <span>{formatShortAddress(event.reservations[1]?.attendeeAddress ?? "")}</span>
           <strong>Refund {event.depositAmount} USDC immediately</strong>
-          <button className="primary-action">
+          <button className="primary-action" onClick={() => onCheckIn(event.reservations[1] ?? event.reservations[0])}>
             <BadgeCheck size={18} />
             Confirm check-in & refund
           </button>
@@ -209,7 +371,7 @@ function HostDashboard({
           <span>Distribution</span>
           <strong>{event.settlementMode === "party" ? "Checked-in attendees" : "Host"}</strong>
         </div>
-        <button className="secondary-action">
+        <button className="secondary-action" onClick={onSettle}>
           <RefreshCw size={18} />
           Build settle transaction
         </button>
@@ -218,7 +380,7 @@ function HostDashboard({
   );
 }
 
-function PublicEvent({ event }: { event: EventSnapshot }) {
+function PublicEvent({ event, onReserve }: { event: EventSnapshot; onReserve: () => void }) {
   return (
     <div className="public-layout">
       <section className="event-ticket">
@@ -230,9 +392,9 @@ function PublicEvent({ event }: { event: EventSnapshot }) {
         </div>
         <div className="ticket-rule">
           <ShieldCheck size={18} />
-          {modeLabel(event.settlementMode)} settlement
+          {settlementModeLabel(event.settlementMode)} settlement
         </div>
-        <button className="primary-action">
+        <button className="primary-action" onClick={onReserve}>
           <Wallet size={18} />
           Reserve with deposit
         </button>
@@ -297,10 +459,6 @@ function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; 
   );
 }
 
-function StatusPill({ status }: { status: string }) {
-  return <span className={`status-pill ${status}`}>{status.replace(/_/g, " ")}</span>;
-}
-
-function modeLabel(mode: SettlementMode) {
-  return mode === "party" ? "Party Mode" : "Strict Mode";
+function StatusPill({ status }: { status: ReservationSnapshot["status"] }) {
+  return <span className={`status-pill ${status}`}>{reservationStatusLabel(status)}</span>;
 }

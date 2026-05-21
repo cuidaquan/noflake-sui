@@ -7,6 +7,7 @@ describe("backend api", () => {
     const db = createDatabase(":memory:");
     db.upsertEvent({
       objectId: "0xevent",
+      vaultObjectId: "0xvault",
       hostAddress: "0xhost",
       title: "Sui Builder Dinner",
       depositAmount: "20",

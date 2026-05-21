@@ -91,6 +91,12 @@ button {
   margin-bottom: 22px;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .eyebrow {
   margin: 0 0 6px;
   color: #52624c;
@@ -137,6 +143,57 @@ h1 {
   background: #ffdd58;
   padding: 12px 14px;
   font-weight: 800;
+}
+
+.notice-building {
+  background: #c7d9f5;
+}
+
+.notice-signing {
+  background: #bfe8c7;
+}
+
+.notice-success {
+  background: #bfe8c7;
+}
+
+.notice-error {
+  background: #f6b1a6;
+}
+
+.status-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.status-strip > div {
+  border: 2px solid #20251f;
+  border-radius: 8px;
+  background: #f4f1df;
+  padding: 14px 16px;
+  box-shadow: 4px 4px 0 #20251f;
+}
+
+.status-strip span {
+  display: block;
+  color: #52624c;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.status-strip strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 1rem;
+}
+
+.status-strip p {
+  margin-top: 6px;
+  color: #52624c;
+  font-size: 0.82rem;
 }
 
 .dashboard-grid {

@@ -58,6 +58,23 @@ function applyEvent(db: NoFlakeDatabase, event: SuiEvent): number {
     return 1;
   }
 
+  if (type === "EventCreated") {
+    db.upsertEvent({
+      objectId: stringField(data, "event_id"),
+      vaultObjectId: stringField(data, "vault_id"),
+      hostAddress: stringField(data, "host"),
+      title: stringField(data, "title"),
+      depositAmount: stringField(data, "deposit_amount"),
+      seatCount: numberField(data, "seat_count"),
+      reservedCount: 0,
+      checkedInCount: 0,
+      settlementMode: numberField(data, "settlement_mode") === 1 ? "party" : "strict",
+      status: "open",
+      updatedDigest: digest,
+    });
+    return 1;
+  }
+
   if (type === "ReservationCancelled") {
     const reservationId = stringField(data, "reservation_id");
     const existing = db.getReservation(reservationId);
