@@ -62,9 +62,15 @@ button {
 
 .brand-mark {
   margin-bottom: 18px;
-  background: #20251f;
-  color: #e8efcf;
-  font-weight: 900;
+  overflow: hidden;
+  background: #07101d;
+  box-shadow: 4px 4px 0 #20251f;
+}
+
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .rail-button {

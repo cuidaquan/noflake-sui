@@ -195,7 +195,9 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
   return (
     <main className="app-shell">
       <aside className="rail">
-        <div className="brand-mark">NF</div>
+        <div className="brand-mark" aria-label="NoFlake">
+          <img src="/noflake-logo.png" alt="" />
+        </div>
         <button className={viewMode === "host" ? "rail-button active" : "rail-button"} onClick={() => setViewMode("host")} title="Host dashboard">
           <ClipboardCheck size={19} />
         </button>
