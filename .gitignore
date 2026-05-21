@@ -4,6 +4,7 @@ build/
 .vite/
 .turbo/
 .local-tools/
+.worktrees/
 .env
 .env.local
 .env.*.local
