@@ -31,12 +31,14 @@ The initial scaffold is intentionally minimal. It is set up to support the first
 
 ## Tooling
 
-- Sui CLI
-- Node.js
+- Sui CLI 1.72.2
+- Node.js 22.x
 - npm
-- TypeScript
-- React
-- Vite
+- TypeScript 5.9
+- React 19
+- Vite 8
+
+Use `npm run move:build` to compile the Move package with the local Sui CLI pinned under `.local-tools/`.
 
 ## Next Steps
 

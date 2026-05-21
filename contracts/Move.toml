@@ -4,3 +4,8 @@ edition = "2024.beta"
 
 [addresses]
 noflake = "0x0"
+
+[move.toolchain-version]
+compiler-version = "1.72.2"
+edition = "2024.beta"
+flavor = "sui"
