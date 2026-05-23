@@ -29,6 +29,8 @@ import {
   deriveNoShowCount,
   deriveSettlementPreview,
   eventStatusLabel,
+  explorerObjectUrl,
+  explorerTransactionUrl,
   extractCreatedEventRefs,
   extractReservationId,
   extractSettlementSnapshot,
@@ -131,6 +133,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">("idle");
   const [txState, setTxState] = useState<TxState>("idle");
   const [txMessage, setTxMessage] = useState("Ready for testnet transactions.");
+  const [manualEventId, setManualEventId] = useState("");
   const [createEventForm, setCreateEventForm] = useState<CreateEventFormState>(defaultCreateEventForm);
   const [createdEvent, setCreatedEvent] = useState<CreatedEventState | null>(null);
   const [checkInDraft, setCheckInDraft] = useState<CheckInDraftState>({
@@ -149,14 +152,8 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
     const eventId = new URLSearchParams(window.location.search).get("event");
     if (!eventId) return;
 
-    setLoadState("loading");
-    fetchEventSnapshot(eventId)
-      .then((snapshot) => {
-        setEvent(snapshot);
-        setSelectedReservationId(snapshot.reservations[0]?.objectId ?? "");
-        setLoadState("idle");
-      })
-      .catch(() => setLoadState("error"));
+    setManualEventId(eventId);
+    void loadEventSnapshot(eventId);
   }, []);
 
   const selectedReservation =
@@ -170,6 +167,36 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
     }),
     [],
   );
+
+  async function loadEventSnapshot(eventId = manualEventId) {
+    if (!eventId.trim()) {
+      setLoadState("error");
+      setTxMessage("Enter an event id before loading.");
+      setTxState("error");
+      return;
+    }
+
+    setLoadState("loading");
+    try {
+      const snapshot = await fetchEventSnapshot(eventId.trim());
+      setEvent(snapshot);
+      setSettlementResult(snapshot.settlement);
+      setSelectedReservationId(snapshot.reservations[0]?.objectId ?? "");
+      setLoadState("idle");
+      setTxState("success");
+      setTxMessage(`Loaded event ${formatShortAddress(snapshot.objectId)} from backend cache.`);
+    } catch {
+      setLoadState("error");
+      setTxState("error");
+      setTxMessage("Backend cache unavailable or event was not found.");
+    }
+  }
+
+  async function copyText(value: string, label: string) {
+    await navigator.clipboard?.writeText(value);
+    setTxState("success");
+    setTxMessage(`${label} copied.`);
+  }
 
   async function execute(transaction: Transaction, actionLabel: string) {
     if (!account) {
@@ -498,6 +525,12 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
         {txState !== "idle" ? <div className={`notice notice-${txState}`}>{txMessage}</div> : null}
 
         <StatusStrip account={account?.address ?? null} walletName={currentWallet?.name ?? null} event={event} />
+        <DemoControlBar
+          eventId={manualEventId}
+          onEventIdChange={setManualEventId}
+          onLoad={() => void loadEventSnapshot()}
+          onRefresh={() => void loadEventSnapshot(event.objectId)}
+        />
 
         {viewMode === "host" ? (
           <HostDashboard
@@ -513,6 +546,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
             onSettle={handleSettle}
             onCheckIn={handleCheckIn}
             settlementResult={settlementResult}
+            onCopy={copyText}
           />
         ) : viewMode === "event" ? (
           <PublicEvent
@@ -572,6 +606,7 @@ function HostDashboard({
   onCheckIn,
   onSettle,
   settlementResult,
+  onCopy,
 }: {
   event: EventSnapshot;
   txConfig: { packageId: string; coinType: string };
@@ -585,6 +620,7 @@ function HostDashboard({
   onCheckIn: (reservation: ReservationSnapshot) => void;
   onSettle: () => void;
   settlementResult: EventSnapshot["settlement"];
+  onCopy: (value: string, label: string) => void;
 }) {
   const settlementPreview = deriveSettlementPreview(event);
   const noShowCount = settlementPreview.noShowCount;
@@ -631,11 +667,12 @@ function HostDashboard({
         {createdEvent ? (
           <div className="object-card">
             <span>Created event</span>
-            <strong>{createdEvent.eventObjectId}</strong>
+            <strong><a href={explorerObjectUrl(createdEvent.eventObjectId)} target="_blank" rel="noreferrer">{createdEvent.eventObjectId}</a></strong>
             <span>Vault</span>
-            <strong>{createdEvent.vaultObjectId}</strong>
+            <strong><a href={explorerObjectUrl(createdEvent.vaultObjectId)} target="_blank" rel="noreferrer">{createdEvent.vaultObjectId}</a></strong>
             <span>Digest</span>
-            <strong>{createdEvent.digest || "submitted"}</strong>
+            <strong><a href={explorerTransactionUrl(createdEvent.digest)} target="_blank" rel="noreferrer">{createdEvent.digest || "submitted"}</a></strong>
+            <button className="inline-copy" onClick={() => onCopy(createdEvent.eventObjectId, "Event id")}>Copy event id</button>
           </div>
         ) : null}
       </section>
@@ -725,9 +762,9 @@ function HostDashboard({
         {settlementResult ? (
           <div className="object-card settlement-result-card">
             <span>Receipt</span>
-            <strong>{settlementResult.objectId}</strong>
+            <strong><a href={explorerObjectUrl(settlementResult.objectId)} target="_blank" rel="noreferrer">{settlementResult.objectId}</a></strong>
             <span>Digest</span>
-            <strong>{settlementResult.settledDigest}</strong>
+            <strong><a href={explorerTransactionUrl(settlementResult.settledDigest)} target="_blank" rel="noreferrer">{settlementResult.settledDigest}</a></strong>
             <span>No-show</span>
             <strong>{settlementResult.totalNoShow}</strong>
             <span>Forfeited</span>
@@ -738,6 +775,35 @@ function HostDashboard({
         ) : null}
       </section>
     </div>
+  );
+}
+
+function DemoControlBar({
+  eventId,
+  onEventIdChange,
+  onLoad,
+  onRefresh,
+}: {
+  eventId: string;
+  onEventIdChange: (eventId: string) => void;
+  onLoad: () => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <section className="demo-control-bar">
+      <label>
+        Manual event id
+        <input value={eventId} onChange={(event) => onEventIdChange(event.currentTarget.value)} placeholder="0x..." />
+      </label>
+      <button className="secondary-action compact-action" onClick={onLoad}>
+        <LinkIcon size={16} />
+        Load
+      </button>
+      <button className="secondary-action compact-action" onClick={onRefresh}>
+        <RefreshCw size={16} />
+        Refresh current
+      </button>
+    </section>
   );
 }
 

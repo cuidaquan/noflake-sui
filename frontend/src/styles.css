@@ -175,6 +175,19 @@ h1 {
   margin-bottom: 16px;
 }
 
+.demo-control-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px 180px;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+  border: 2px solid #20251f;
+  border-radius: 8px;
+  background: #f4f1df;
+  padding: 14px;
+  box-shadow: 4px 4px 0 #20251f;
+}
+
 .status-strip > div {
   border: 2px solid #20251f;
   border-radius: 8px;
@@ -299,6 +312,10 @@ button:disabled {
 
 .secondary-action {
   background: #c7d9f5;
+}
+
+.compact-action {
+  margin-top: 0;
 }
 
 .metrics-strip {
@@ -588,6 +605,23 @@ button:disabled {
   font-size: 0.78rem;
 }
 
+.object-card a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.inline-copy {
+  grid-column: 1 / -1;
+  border: 2px solid #20251f;
+  border-radius: 6px;
+  background: #c7d9f5;
+  color: #20251f;
+  padding: 8px 10px;
+  font-weight: 900;
+}
+
 .settlement-result-card {
   margin-top: 16px;
   background: #e8f0cf;
@@ -618,6 +652,7 @@ button:disabled {
   }
 
   .topbar,
+  .demo-control-bar,
   .public-layout,
   .reservation-layout,
   .dashboard-grid {

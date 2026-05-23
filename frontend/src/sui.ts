@@ -108,6 +108,14 @@ export function eventStatusLabel(status: EventStatus): string {
   }
 }
 
+export function explorerObjectUrl(objectId: string, network = "testnet"): string {
+  return `https://suiexplorer.com/object/${objectId}?network=${network}`;
+}
+
+export function explorerTransactionUrl(digest: string, network = "testnet"): string {
+  return `https://suiexplorer.com/txblock/${digest}?network=${network}`;
+}
+
 export function reservationStatusLabel(status: ReservationStatus): string {
   return status.replace(/_/g, " ");
 }

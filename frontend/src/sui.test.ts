@@ -6,6 +6,8 @@ import {
   buildReserveTransaction,
   buildSettleEventTransaction,
   buildCheckInPayload,
+  explorerObjectUrl,
+  explorerTransactionUrl,
   extractCreatedEventRefs,
   extractReservationId,
   parseCheckInPayload,
@@ -101,6 +103,11 @@ describe("NoFlake transaction builders", () => {
         settlement: null,
       }),
     ).toBe(2);
+  });
+
+  it("builds Sui Explorer URLs for testnet objects and transactions", () => {
+    expect(explorerObjectUrl(eventObjectId)).toBe(`https://suiexplorer.com/object/${eventObjectId}?network=testnet`);
+    expect(explorerTransactionUrl("digest")).toBe("https://suiexplorer.com/txblock/digest?network=testnet");
   });
 
   it("derives settlement preview amounts for the dashboard", () => {
