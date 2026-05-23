@@ -26,6 +26,7 @@ import {
   buildSettleEventTransaction,
   deriveNoShowCount,
   eventStatusLabel,
+  extractCreatedEventRefs,
   formatShortAddress,
   selectReserveCoin,
   reservationStatusLabel,
@@ -35,6 +36,21 @@ import {
 
 type ViewMode = "host" | "event" | "reservation";
 type TxState = "idle" | "building" | "signing" | "success" | "error";
+
+interface CreateEventFormState {
+  title: string;
+  startLocal: string;
+  endLocal: string;
+  depositAmount: string;
+  seatCount: string;
+  settlementMode: "strict" | "party";
+}
+
+interface CreatedEventState {
+  eventObjectId: string;
+  vaultObjectId: string;
+  digest: string;
+}
 
 const sampleReservations: ReservationSnapshot[] = [
   {
@@ -84,6 +100,15 @@ const coinType =
   import.meta.env.VITE_NOFLAKE_COIN_TYPE ??
   "0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC";
 
+const defaultCreateEventForm: CreateEventFormState = {
+  title: "Sui Builder Dinner",
+  startLocal: "2026-06-01T19:00",
+  endLocal: "2026-06-01T22:00",
+  depositAmount: "20",
+  seatCount: "3",
+  settlementMode: "party",
+};
+
 export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
   const [event, setEvent] = useState(sampleEvent);
   const [viewMode, setViewMode] = useState<ViewMode>("host");
@@ -91,6 +116,8 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">("idle");
   const [txState, setTxState] = useState<TxState>("idle");
   const [txMessage, setTxMessage] = useState("Ready for testnet transactions.");
+  const [createEventForm, setCreateEventForm] = useState<CreateEventFormState>(defaultCreateEventForm);
+  const [createdEvent, setCreatedEvent] = useState<CreatedEventState | null>(null);
 
   const account = useCurrentAccount({ dAppKit });
   const currentNetwork = useCurrentNetwork({ dAppKit });
@@ -141,13 +168,99 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
       transaction.setSender(account.address);
       setTxState("signing");
       setTxMessage(`${actionLabel}: waiting for wallet signature.`);
-      await dAppKit.signAndExecuteTransaction({ transaction });
+      const result = await dAppKit.signAndExecuteTransaction({ transaction });
+      const digest =
+        result.$kind === "Transaction"
+          ? result.Transaction.digest
+          : result.FailedTransaction.digest;
       setTxState("success");
-      setTxMessage(`${actionLabel}: transaction submitted.`);
+      setTxMessage(`${actionLabel}: transaction submitted (${formatShortAddress(digest)}).`);
+      return { digest };
     } catch (error) {
       setTxState("error");
       setTxMessage(error instanceof Error ? error.message : `${actionLabel} failed.`);
+      return null;
     }
+  }
+
+  async function handleCreateEvent() {
+    const title = createEventForm.title.trim();
+    const depositAmount = Number(createEventForm.depositAmount);
+    const seatCount = Number(createEventForm.seatCount);
+    const startMs = new Date(createEventForm.startLocal).getTime();
+    const endMs = new Date(createEventForm.endLocal).getTime();
+
+    if (!title) {
+      setTxState("error");
+      setTxMessage("Create event: title is required.");
+      return;
+    }
+    if (!Number.isFinite(depositAmount) || depositAmount <= 0) {
+      setTxState("error");
+      setTxMessage("Create event: deposit must be greater than zero.");
+      return;
+    }
+    if (!Number.isInteger(seatCount) || seatCount <= 0) {
+      setTxState("error");
+      setTxMessage("Create event: seat count must be a positive integer.");
+      return;
+    }
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs >= endMs) {
+      setTxState("error");
+      setTxMessage("Create event: start time must be before end time.");
+      return;
+    }
+
+    const result = await execute(
+      buildCreateEventTransaction(txConfig, {
+        title,
+        startMs,
+        endMs,
+        depositAmount,
+        seatCount,
+        settlementMode: createEventForm.settlementMode,
+      }),
+      "Create event",
+    );
+    if (!result) return;
+
+    const client = dAppKit.getClient(currentNetwork) as SuiJsonRpcClient;
+    const txDetails = await client.getTransactionBlock({
+      digest: result.digest,
+      options: {
+        showEvents: true,
+        showObjectChanges: true,
+      },
+    });
+
+    const refs = extractCreatedEventRefs(txDetails);
+    const digest = result.digest;
+    if (!refs) {
+      setTxState("success");
+      setTxMessage("Create event: transaction submitted. Event refs were not found in wallet response yet.");
+      setCreatedEvent(null);
+      return;
+    }
+
+    setCreatedEvent({ ...refs, digest });
+    setEvent({
+      ...sampleEvent,
+      objectId: refs.eventObjectId,
+      vaultObjectId: refs.vaultObjectId,
+      hostAddress: account?.address ?? sampleEvent.hostAddress,
+      title,
+      depositAmount: String(depositAmount),
+      seatCount,
+      reservedCount: 0,
+      checkedInCount: 0,
+      settlementMode: createEventForm.settlementMode,
+      status: "open",
+      updatedDigest: digest,
+      reservations: [],
+      settlement: null,
+    });
+    setSelectedReservationId("");
+    setTxMessage(`Create event: ${formatShortAddress(refs.eventObjectId)} created.`);
   }
 
   async function handleReserve() {
@@ -236,20 +349,11 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
           <HostDashboard
             event={event}
             txConfig={txConfig}
+            createEventForm={createEventForm}
+            createdEvent={createdEvent}
+            onCreateEventFormChange={setCreateEventForm}
             onSelectReservation={setSelectedReservationId}
-            onCreateEvent={() =>
-              execute(
-                buildCreateEventTransaction(txConfig, {
-                  title: event.title,
-                  startMs: 1_700_000_000_000,
-                  endMs: 1_700_000_360_000,
-                  depositAmount: Number(event.depositAmount),
-                  seatCount: event.seatCount,
-                  settlementMode: event.settlementMode,
-                }),
-                "Create event",
-              )
-            }
+            onCreateEvent={handleCreateEvent}
             onSettle={() =>
               execute(
                 buildSettleEventTransaction(txConfig, {
@@ -318,6 +422,9 @@ function StatusStrip({
 function HostDashboard({
   event,
   txConfig,
+  createEventForm,
+  createdEvent,
+  onCreateEventFormChange,
   onSelectReservation,
   onCreateEvent,
   onCheckIn,
@@ -325,6 +432,9 @@ function HostDashboard({
 }: {
   event: EventSnapshot;
   txConfig: { packageId: string; coinType: string };
+  createEventForm: CreateEventFormState;
+  createdEvent: CreatedEventState | null;
+  onCreateEventFormChange: (form: CreateEventFormState) => void;
   onSelectReservation: (reservationId: string) => void;
   onCreateEvent: () => void;
   onCheckIn: (reservation: ReservationSnapshot) => void;
@@ -332,6 +442,7 @@ function HostDashboard({
 }) {
   const noShowCount = deriveNoShowCount(event);
   const vaultBalance = noShowCount * Number(event.depositAmount);
+  const updateForm = (patch: Partial<CreateEventFormState>) => onCreateEventFormChange({ ...createEventForm, ...patch });
 
   return (
     <div className="dashboard-grid">
@@ -340,19 +451,27 @@ function HostDashboard({
         <div className="form-grid">
           <label>
             Event title
-            <input value={event.title} readOnly />
+            <input value={createEventForm.title} onChange={(error) => updateForm({ title: error.currentTarget.value })} />
           </label>
           <label>
             Deposit
-            <input value={`${event.depositAmount} USDC`} readOnly />
+            <input inputMode="decimal" value={createEventForm.depositAmount} onChange={(error) => updateForm({ depositAmount: error.currentTarget.value })} />
           </label>
           <label>
             Seats
-            <input value={event.seatCount} readOnly />
+            <input inputMode="numeric" value={createEventForm.seatCount} onChange={(error) => updateForm({ seatCount: error.currentTarget.value })} />
+          </label>
+          <label>
+            Start
+            <input type="datetime-local" value={createEventForm.startLocal} onChange={(error) => updateForm({ startLocal: error.currentTarget.value })} />
+          </label>
+          <label>
+            End
+            <input type="datetime-local" value={createEventForm.endLocal} onChange={(error) => updateForm({ endLocal: error.currentTarget.value })} />
           </label>
           <label>
             Mode
-            <select value={event.settlementMode} disabled>
+            <select value={createEventForm.settlementMode} onChange={(error) => updateForm({ settlementMode: error.currentTarget.value as "strict" | "party" })}>
               <option value="strict">Strict</option>
               <option value="party">Party</option>
             </select>
@@ -360,8 +479,18 @@ function HostDashboard({
         </div>
         <button className="primary-action" onClick={onCreateEvent} disabled={!txConfig.packageId}>
           <Wallet size={18} />
-          Build create-event transaction
+          Create testnet event
         </button>
+        {createdEvent ? (
+          <div className="object-card">
+            <span>Created event</span>
+            <strong>{createdEvent.eventObjectId}</strong>
+            <span>Vault</span>
+            <strong>{createdEvent.vaultObjectId}</strong>
+            <span>Digest</span>
+            <strong>{createdEvent.digest || "submitted"}</strong>
+          </div>
+        ) : null}
       </section>
 
       <section className="metrics-strip">

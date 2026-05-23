@@ -5,6 +5,7 @@ import {
   buildCreateEventTransaction,
   buildReserveTransaction,
   buildSettleEventTransaction,
+  extractCreatedEventRefs,
   selectReserveCoin,
   deriveNoShowCount,
   eventStatusLabel,
@@ -108,6 +109,45 @@ describe("NoFlake transaction builders", () => {
         "20",
       )?.coinObjectId,
     ).toBe("0x2");
+  });
+
+  it("extracts created event and vault refs from EventCreated parsedJson", () => {
+    expect(
+      extractCreatedEventRefs({
+        events: [
+          {
+            type: `${config.packageId}::noflake::EventCreated`,
+            parsedJson: {
+              event_id: eventObjectId,
+              vault_id: vaultObjectId,
+            },
+          },
+        ],
+        objectChanges: [],
+      }),
+    ).toEqual({ eventObjectId, vaultObjectId });
+  });
+
+  it("extracts created event and vault refs from object changes when events are unavailable", () => {
+    expect(
+      extractCreatedEventRefs({
+        events: [],
+        objectChanges: [
+          {
+            type: "created",
+            objectId: eventObjectId,
+            objectType: `${config.packageId}::noflake::Event`,
+            owner: { Shared: { initial_shared_version: 1 } },
+          },
+          {
+            type: "created",
+            objectId: vaultObjectId,
+            objectType: `${config.packageId}::noflake::EventVault<${config.coinType}>`,
+            owner: { Shared: { initial_shared_version: 1 } },
+          },
+        ],
+      }),
+    ).toEqual({ eventObjectId, vaultObjectId });
   });
 
   it("passes an exact deposit coin to reserve and transfers the returned reservation", () => {

@@ -397,7 +397,8 @@ select {
 }
 
 .confirm-sheet,
-.detail-list {
+.detail-list,
+.object-card {
   display: grid;
   gap: 10px;
   margin-top: 14px;
@@ -408,7 +409,8 @@ select {
 }
 
 .settlement-line,
-.detail-list {
+.detail-list,
+.object-card {
   border-top: 2px solid #20251f;
   padding-top: 12px;
 }
@@ -518,6 +520,25 @@ select {
 .detail-list span {
   color: #52624c;
   font-weight: 900;
+}
+
+.object-card {
+  grid-template-columns: 90px minmax(0, 1fr);
+  color: #20251f;
+  font-size: 0.78rem;
+}
+
+.object-card span {
+  color: #52624c;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.object-card strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: "Courier New", monospace;
+  font-size: 0.78rem;
 }
 
 @media (max-width: 900px) {

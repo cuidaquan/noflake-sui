@@ -54,6 +54,24 @@ export interface NoFlakeTxConfig {
   gasBudget?: number;
 }
 
+export interface CreatedEventRefs {
+  eventObjectId: string;
+  vaultObjectId: string;
+}
+
+export interface TransactionResultLike {
+  events?: Array<{
+    type?: string;
+    parsedJson?: unknown;
+  }>;
+  objectChanges?: Array<{
+    type?: string;
+    objectId?: string;
+    objectType?: string;
+    owner?: unknown;
+  }>;
+}
+
 const DEFAULT_GAS_BUDGET = 100_000_000;
 
 export function settlementModeLabel(mode: SettlementMode): string {
@@ -105,6 +123,38 @@ export function buildCreateEventTransaction(
     ],
   });
   return tx;
+}
+
+export function extractCreatedEventRefs(result: TransactionResultLike | unknown): CreatedEventRefs | null {
+  const data = transactionResultLike(result);
+  if (!data) return null;
+
+  for (const event of data.events ?? []) {
+    if (!event.type?.endsWith("::noflake::EventCreated")) continue;
+    const parsed = event.parsedJson;
+    if (!parsed || typeof parsed !== "object") continue;
+
+    const data = parsed as Record<string, unknown>;
+    const eventObjectId = stringValue(data.event_id);
+    const vaultObjectId = stringValue(data.vault_id);
+    if (eventObjectId && vaultObjectId) {
+      return { eventObjectId, vaultObjectId };
+    }
+  }
+
+  let eventObjectId = "";
+  let vaultObjectId = "";
+  for (const change of data.objectChanges ?? []) {
+    if (change.type !== "created" || !change.objectId || !change.objectType) continue;
+    if (change.objectType.endsWith("::noflake::Event")) {
+      eventObjectId = change.objectId;
+    }
+    if (change.objectType.includes("::noflake::EventVault<")) {
+      vaultObjectId = change.objectId;
+    }
+  }
+
+  return eventObjectId && vaultObjectId ? { eventObjectId, vaultObjectId } : null;
 }
 
 export function buildReserveTransaction(
@@ -206,4 +256,14 @@ export function selectReserveCoin(coins: CoinSnapshot[], coinType: string, depos
       .filter((coin) => coin.coinType === coinType && BigInt(coin.balance) >= required)
       .sort((left, right) => BigInt(left.balance) > BigInt(right.balance) ? 1 : -1)[0] ?? null
   );
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function transactionResultLike(value: unknown): TransactionResultLike | null {
+  if (!value || typeof value !== "object") return null;
+  const data = value as TransactionResultLike;
+  return Array.isArray(data.events) || Array.isArray(data.objectChanges) ? data : null;
 }
