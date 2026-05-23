@@ -27,9 +27,11 @@ import {
   buildReserveTransaction,
   buildSettleEventTransaction,
   deriveNoShowCount,
+  deriveSettlementPreview,
   eventStatusLabel,
   extractCreatedEventRefs,
   extractReservationId,
+  extractSettlementSnapshot,
   formatShortAddress,
   parseCheckInPayload,
   selectReserveCoin,
@@ -137,6 +139,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
     reservation: null,
     error: "Paste a NoFlake check-in QR payload to begin.",
   });
+  const [settlementResult, setSettlementResult] = useState<EventSnapshot["settlement"]>(sampleEvent.settlement);
 
   const account = useCurrentAccount({ dAppKit });
   const currentNetwork = useCurrentNetwork({ dAppKit });
@@ -420,6 +423,42 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
     }));
   }
 
+  async function handleSettle() {
+    const result = await execute(
+      buildSettleEventTransaction(txConfig, {
+        eventObjectId: event.objectId,
+        vaultObjectId: event.vaultObjectId,
+      }),
+      "Settle event",
+    );
+    if (!result) return;
+
+    const client = dAppKit.getClient(currentNetwork) as SuiJsonRpcClient;
+    const txDetails = await client.getTransactionBlock({
+      digest: result.digest,
+      options: {
+        showEvents: true,
+        showObjectChanges: true,
+      },
+    });
+    const settlement = extractSettlementSnapshot(txDetails, result.digest);
+    if (!settlement) {
+      setTxState("success");
+      setTxMessage("Settle event: transaction submitted. Settlement receipt was not found in RPC response yet.");
+      return;
+    }
+
+    setSettlementResult(settlement);
+    setEvent((current) => ({
+      ...current,
+      status: "settled",
+      settlement,
+      updatedDigest: result.digest,
+    }));
+    setTxState("success");
+    setTxMessage(`Settle event: receipt ${formatShortAddress(settlement.objectId)} created.`);
+  }
+
   const noShowCount = deriveNoShowCount(event);
   const vaultBalance = noShowCount * Number(event.depositAmount);
 
@@ -471,16 +510,9 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
             onCheckInPayloadChange={handleCheckInPayloadChange}
             onSelectReservation={setSelectedReservationId}
             onCreateEvent={handleCreateEvent}
-            onSettle={() =>
-              execute(
-                buildSettleEventTransaction(txConfig, {
-                  eventObjectId: event.objectId,
-                  vaultObjectId: event.vaultObjectId,
-                }),
-                "Settle event",
-              )
-            }
+            onSettle={handleSettle}
             onCheckIn={handleCheckIn}
+            settlementResult={settlementResult}
           />
         ) : viewMode === "event" ? (
           <PublicEvent
@@ -539,6 +571,7 @@ function HostDashboard({
   onCreateEvent,
   onCheckIn,
   onSettle,
+  settlementResult,
 }: {
   event: EventSnapshot;
   txConfig: { packageId: string; coinType: string };
@@ -551,9 +584,11 @@ function HostDashboard({
   onCreateEvent: () => void;
   onCheckIn: (reservation: ReservationSnapshot) => void;
   onSettle: () => void;
+  settlementResult: EventSnapshot["settlement"];
 }) {
-  const noShowCount = deriveNoShowCount(event);
-  const vaultBalance = noShowCount * Number(event.depositAmount);
+  const settlementPreview = deriveSettlementPreview(event);
+  const noShowCount = settlementPreview.noShowCount;
+  const vaultBalance = settlementPreview.vaultBalance;
   const updateForm = (patch: Partial<CreateEventFormState>) => onCreateEventFormChange({ ...createEventForm, ...patch });
 
   return (
@@ -657,18 +692,50 @@ function HostDashboard({
 
       <section className="control-panel settlement-panel">
         <PanelTitle icon={<RefreshCw size={18} />} title="Settlement" />
+        <div className="settlement-preview">
+          <div>
+            <span>Reserved</span>
+            <strong>{event.reservedCount}</strong>
+          </div>
+          <div>
+            <span>Checked in</span>
+            <strong>{event.checkedInCount}</strong>
+          </div>
+          <div>
+            <span>No-show</span>
+            <strong>{noShowCount}</strong>
+          </div>
+        </div>
         <div className="settlement-line">
           <span>No-show deposits</span>
           <strong>{vaultBalance} USDC</strong>
         </div>
         <div className="settlement-line">
-          <span>Distribution</span>
-          <strong>{event.settlementMode === "party" ? "Checked-in attendees" : "Host"}</strong>
+          <span>Already refunded</span>
+          <strong>{settlementPreview.checkedInRefundedAmount} USDC</strong>
         </div>
-        <button className="secondary-action" onClick={onSettle}>
+        <div className="settlement-line">
+          <span>Distribution</span>
+          <strong>{settlementPreview.distributionLabel}</strong>
+        </div>
+        <button className="secondary-action" onClick={onSettle} disabled={event.status === "settled"}>
           <RefreshCw size={18} />
-          Build settle transaction
+          {event.status === "settled" ? "Event settled" : "Settle event"}
         </button>
+        {settlementResult ? (
+          <div className="object-card settlement-result-card">
+            <span>Receipt</span>
+            <strong>{settlementResult.objectId}</strong>
+            <span>Digest</span>
+            <strong>{settlementResult.settledDigest}</strong>
+            <span>No-show</span>
+            <strong>{settlementResult.totalNoShow}</strong>
+            <span>Forfeited</span>
+            <strong>{settlementResult.forfeitedAmount} USDC</strong>
+            <span>Distributed</span>
+            <strong>{settlementResult.distributedAmount} USDC</strong>
+          </div>
+        ) : null}
       </section>
     </div>
   );

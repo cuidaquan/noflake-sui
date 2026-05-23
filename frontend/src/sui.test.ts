@@ -12,7 +12,9 @@ import {
   selectReserveCoin,
   validateCheckInPayloadForEvent,
   deriveNoShowCount,
+  deriveSettlementPreview,
   eventStatusLabel,
+  extractSettlementSnapshot,
   formatShortAddress,
   reservationStatusLabel,
   settlementModeLabel,
@@ -101,6 +103,31 @@ describe("NoFlake transaction builders", () => {
     ).toBe(2);
   });
 
+  it("derives settlement preview amounts for the dashboard", () => {
+    expect(
+      deriveSettlementPreview({
+        objectId: "0xevent",
+        vaultObjectId: "0xvault",
+        hostAddress: "0xhost",
+        title: "Event",
+        depositAmount: "20",
+        seatCount: 3,
+        reservedCount: 3,
+        checkedInCount: 2,
+        settlementMode: "party",
+        status: "open",
+        updatedDigest: "digest",
+        reservations: [],
+        settlement: null,
+      }),
+    ).toEqual({
+      noShowCount: 1,
+      vaultBalance: 20,
+      distributionLabel: "Checked-in attendees",
+      checkedInRefundedAmount: 40,
+    });
+  });
+
   it("selects the smallest usable reserve coin of the target type", () => {
     expect(
       selectReserveCoin(
@@ -169,6 +196,39 @@ describe("NoFlake transaction builders", () => {
         ],
       }),
     ).toBe(reservationObjectId);
+  });
+
+  it("extracts settlement receipt data from EventSettled parsedJson", () => {
+    expect(
+      extractSettlementSnapshot(
+        {
+          events: [
+            {
+              type: `${config.packageId}::noflake::EventSettled`,
+              parsedJson: {
+                event_id: eventObjectId,
+                receipt_id: "0xreceipt",
+                total_reserved: "3",
+                total_checked_in: "2",
+                total_no_show: "1",
+                forfeited_amount: "0",
+                distributed_amount: "20",
+              },
+            },
+          ],
+        },
+        "settleDigest",
+      ),
+    ).toEqual({
+      objectId: "0xreceipt",
+      eventObjectId,
+      totalReserved: 3,
+      totalCheckedIn: 2,
+      totalNoShow: 1,
+      forfeitedAmount: "0",
+      distributedAmount: "20",
+      settledDigest: "settleDigest",
+    });
   });
 
   it("builds a stable check-in QR payload", () => {

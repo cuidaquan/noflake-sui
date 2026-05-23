@@ -444,6 +444,34 @@ button:disabled {
   padding-top: 12px;
 }
 
+.settlement-preview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.settlement-preview > div {
+  border: 2px solid #20251f;
+  border-radius: 6px;
+  background: #fffdf2;
+  padding: 10px;
+}
+
+.settlement-preview span {
+  display: block;
+  color: #52624c;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.settlement-preview strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.5rem;
+}
+
 .settlement-line {
   display: flex;
   justify-content: space-between;
@@ -558,6 +586,11 @@ button:disabled {
   overflow-wrap: anywhere;
   font-family: "Courier New", monospace;
   font-size: 0.78rem;
+}
+
+.settlement-result-card {
+  margin-top: 16px;
+  background: #e8f0cf;
 }
 
 @media (max-width: 900px) {

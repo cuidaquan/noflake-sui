@@ -82,6 +82,13 @@ export type CheckInPrecheckResult =
   | { ok: true; reservation: ReservationSnapshot }
   | { ok: false; reason: string };
 
+export interface SettlementPreview {
+  noShowCount: number;
+  vaultBalance: number;
+  distributionLabel: string;
+  checkedInRefundedAmount: number;
+}
+
 const DEFAULT_GAS_BUDGET = 100_000_000;
 
 export function settlementModeLabel(mode: SettlementMode): string {
@@ -184,6 +191,35 @@ export function extractReservationId(result: TransactionResultLike | unknown): s
     if (change.type === "created" && change.objectType?.endsWith("::noflake::Reservation") && change.objectId) {
       return change.objectId;
     }
+  }
+
+  return null;
+}
+
+export function extractSettlementSnapshot(result: TransactionResultLike | unknown, settledDigest: string): SettlementSnapshot | null {
+  const data = transactionResultLike(result);
+  if (!data) return null;
+
+  for (const event of data.events ?? []) {
+    if (!event.type?.endsWith("::noflake::EventSettled")) continue;
+    const parsed = event.parsedJson;
+    if (!parsed || typeof parsed !== "object") continue;
+
+    const eventData = parsed as Record<string, unknown>;
+    const objectId = stringValue(eventData.receipt_id);
+    const eventObjectId = stringValue(eventData.event_id);
+    if (!objectId || !eventObjectId) return null;
+
+    return {
+      objectId,
+      eventObjectId,
+      totalReserved: numberValue(eventData.total_reserved),
+      totalCheckedIn: numberValue(eventData.total_checked_in),
+      totalNoShow: numberValue(eventData.total_no_show),
+      forfeitedAmount: stringField(eventData.forfeited_amount),
+      distributedAmount: stringField(eventData.distributed_amount),
+      settledDigest,
+    };
   }
 
   return null;
@@ -342,6 +378,18 @@ export function deriveNoShowCount(event: EventSnapshot): number {
   return Math.max(0, event.reservedCount - event.checkedInCount);
 }
 
+export function deriveSettlementPreview(event: EventSnapshot): SettlementPreview {
+  const noShowCount = deriveNoShowCount(event);
+  const depositAmount = Number(event.depositAmount);
+  const vaultBalance = noShowCount * depositAmount;
+  return {
+    noShowCount,
+    vaultBalance,
+    distributionLabel: event.settlementMode === "party" ? "Checked-in attendees" : "Host",
+    checkedInRefundedAmount: event.checkedInCount * depositAmount,
+  };
+}
+
 export function selectReserveCoin(coins: CoinSnapshot[], coinType: string, depositAmount: bigint | number | string): CoinSnapshot | null {
   const required = BigInt(depositAmount);
   return (
@@ -353,6 +401,14 @@ export function selectReserveCoin(coins: CoinSnapshot[], coinType: string, depos
 
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+function stringField(value: unknown): string {
+  return typeof value === "string" ? value : String(value ?? "0");
+}
+
+function numberValue(value: unknown): number {
+  return typeof value === "number" ? value : Number(value ?? 0);
 }
 
 function transactionResultLike(value: unknown): TransactionResultLike | null {
