@@ -72,6 +72,12 @@ export interface TransactionResultLike {
   }>;
 }
 
+export interface CheckInPayloadInput {
+  eventObjectId: string;
+  reservationObjectId: string;
+  attendeeAddress: string;
+}
+
 const DEFAULT_GAS_BUDGET = 100_000_000;
 
 export function settlementModeLabel(mode: SettlementMode): string {
@@ -155,6 +161,37 @@ export function extractCreatedEventRefs(result: TransactionResultLike | unknown)
   }
 
   return eventObjectId && vaultObjectId ? { eventObjectId, vaultObjectId } : null;
+}
+
+export function extractReservationId(result: TransactionResultLike | unknown): string | null {
+  const data = transactionResultLike(result);
+  if (!data) return null;
+
+  for (const event of data.events ?? []) {
+    if (!event.type?.endsWith("::noflake::ReservationCreated")) continue;
+    const parsed = event.parsedJson;
+    if (!parsed || typeof parsed !== "object") continue;
+
+    const reservationId = stringValue((parsed as Record<string, unknown>).reservation_id);
+    if (reservationId) return reservationId;
+  }
+
+  for (const change of data.objectChanges ?? []) {
+    if (change.type === "created" && change.objectType?.endsWith("::noflake::Reservation") && change.objectId) {
+      return change.objectId;
+    }
+  }
+
+  return null;
+}
+
+export function buildCheckInPayload(input: CheckInPayloadInput): string {
+  return JSON.stringify({
+    type: "noflake_check_in",
+    event_id: input.eventObjectId,
+    reservation_id: input.reservationObjectId,
+    attendee: input.attendeeAddress,
+  });
 }
 
 export function buildReserveTransaction(

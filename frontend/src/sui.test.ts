@@ -5,7 +5,9 @@ import {
   buildCreateEventTransaction,
   buildReserveTransaction,
   buildSettleEventTransaction,
+  buildCheckInPayload,
   extractCreatedEventRefs,
+  extractReservationId,
   selectReserveCoin,
   deriveNoShowCount,
   eventStatusLabel,
@@ -148,6 +150,40 @@ describe("NoFlake transaction builders", () => {
         ],
       }),
     ).toEqual({ eventObjectId, vaultObjectId });
+  });
+
+  it("extracts reservation id from ReservationCreated parsedJson", () => {
+    expect(
+      extractReservationId({
+        events: [
+          {
+            type: `${config.packageId}::noflake::ReservationCreated`,
+            parsedJson: {
+              event_id: eventObjectId,
+              reservation_id: reservationObjectId,
+              attendee: "0xabc",
+            },
+          },
+        ],
+      }),
+    ).toBe(reservationObjectId);
+  });
+
+  it("builds a stable check-in QR payload", () => {
+    expect(
+      buildCheckInPayload({
+        eventObjectId,
+        reservationObjectId,
+        attendeeAddress: "0xabc",
+      }),
+    ).toBe(
+      JSON.stringify({
+        type: "noflake_check_in",
+        event_id: eventObjectId,
+        reservation_id: reservationObjectId,
+        attendee: "0xabc",
+      }),
+    );
   });
 
   it("passes an exact deposit coin to reserve and transfers the returned reservation", () => {

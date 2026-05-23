@@ -17,9 +17,11 @@ import { ConnectButton } from "@mysten/dapp-kit-react/ui";
 import type { DAppKit } from "@mysten/dapp-kit-core";
 import type { Transaction } from "@mysten/sui/transactions";
 import type { SuiJsonRpcClient } from "@mysten/sui/jsonRpc";
+import { QRCodeSVG } from "qrcode.react";
 import type { EventSnapshot, ReservationSnapshot } from "./api/client";
 import { fetchEventSnapshot } from "./api/client";
 import {
+  buildCheckInPayload,
   buildCheckInTransaction,
   buildCreateEventTransaction,
   buildReserveTransaction,
@@ -27,6 +29,7 @@ import {
   deriveNoShowCount,
   eventStatusLabel,
   extractCreatedEventRefs,
+  extractReservationId,
   formatShortAddress,
   selectReserveCoin,
   reservationStatusLabel,
@@ -292,7 +295,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
       return;
     }
 
-    await execute(
+    const result = await execute(
       buildReserveTransaction(txConfig, {
         eventObjectId: event.objectId,
         vaultObjectId: event.vaultObjectId,
@@ -303,6 +306,41 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
       }),
       "Reserve",
     );
+    if (!result) return;
+
+    const txDetails = await client.getTransactionBlock({
+      digest: result.digest,
+      options: {
+        showEvents: true,
+        showObjectChanges: true,
+      },
+    });
+    const reservationId = extractReservationId(txDetails);
+    if (!reservationId) {
+      setTxState("success");
+      setTxMessage("Reserve: transaction submitted. Reservation id was not found in RPC response yet.");
+      return;
+    }
+
+    const reservation: ReservationSnapshot = {
+      objectId: reservationId,
+      eventObjectId: event.objectId,
+      attendeeAddress: account.address,
+      depositAmount: event.depositAmount,
+      status: "reserved",
+      updatedDigest: result.digest,
+    };
+    setEvent((current) => ({
+      ...current,
+      reservedCount: Math.min(current.seatCount, current.reservedCount + 1),
+      status: current.reservedCount + 1 >= current.seatCount ? "full" : current.status,
+      reservations: [reservation, ...current.reservations.filter((item) => item.objectId !== reservation.objectId)],
+      updatedDigest: result.digest,
+    }));
+    setSelectedReservationId(reservation.objectId);
+    setViewMode("reservation");
+    setTxState("success");
+    setTxMessage(`Reserve: reservation ${formatShortAddress(reservation.objectId)} created.`);
   }
 
   const noShowCount = deriveNoShowCount(event);
@@ -581,13 +619,17 @@ function PublicEvent({ event, onReserve }: { event: EventSnapshot; onReserve: ()
 }
 
 function ReservationPage({ event, reservation }: { event: EventSnapshot; reservation: ReservationSnapshot }) {
+  const qrPayload = buildCheckInPayload({
+    eventObjectId: event.objectId,
+    reservationObjectId: reservation.objectId,
+    attendeeAddress: reservation.attendeeAddress,
+  });
+
   return (
     <div className="reservation-layout">
       <section className="qr-card">
-        <div className="qr-grid">
-          {Array.from({ length: 49 }).map((_, index) => (
-            <span key={index} className={(index * 7 + 3) % 5 === 0 ? "dark" : ""} />
-          ))}
+        <div className="qr-frame">
+          <QRCodeSVG value={qrPayload} size={196} level="M" bgColor="#f4f1df" fgColor="#20251f" />
         </div>
         <p>{reservation.objectId}</p>
       </section>
@@ -602,6 +644,8 @@ function ReservationPage({ event, reservation }: { event: EventSnapshot; reserva
           <strong>{reservation.depositAmount} USDC</strong>
           <span>Refund rule</span>
           <strong>Check-in returns deposit immediately</strong>
+          <span>QR payload</span>
+          <strong>{qrPayload}</strong>
         </div>
       </section>
     </div>

@@ -490,22 +490,12 @@ select {
   color: #f4f1df;
 }
 
-.qr-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 22px);
-  gap: 5px;
+.qr-frame {
   padding: 16px;
+  border: 2px solid #f4f1df;
+  border-radius: 8px;
   background: #f4f1df;
-}
-
-.qr-grid span {
-  width: 22px;
-  aspect-ratio: 1;
-  background: #f4f1df;
-}
-
-.qr-grid .dark {
-  background: #20251f;
+  box-shadow: 6px 6px 0 #0c0f0c;
 }
 
 .reservation-detail h2 {
