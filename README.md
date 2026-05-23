@@ -83,11 +83,29 @@ The MVP targets Sui testnet and Circle testnet USDC:
 0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC
 ```
 
-Backend environment variables are documented in `backend/.env.example`. Set `NOFLAKE_PACKAGE_ID` after publishing the Move package to testnet.
+The current NoFlake testnet package is:
+
+```text
+0x27e93520a24d483475c32e477ee723c815f4abd5403072597b1bbeb9748eef7c
+```
+
+Publish transaction digest:
+
+```text
+4r1nE8ckvtZ9bfaeFHT2haCGEgBbbzTHpQvw8fUJXsQ4
+```
+
+Backend environment variables are documented in `backend/.env.example`. Set `NOFLAKE_PACKAGE_ID` to the package ID above. The frontend should set:
+
+```bash
+VITE_NOFLAKE_PACKAGE_ID=0x27e93520a24d483475c32e477ee723c815f4abd5403072597b1bbeb9748eef7c
+VITE_NOFLAKE_COIN_TYPE=0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC
+VITE_NOFLAKE_API_URL=http://127.0.0.1:8787
+```
 
 ## Next Steps
 
-1. Publish the Move package to Sui testnet.
-2. Set `NOFLAKE_PACKAGE_ID` for the backend event poller.
-3. Add wallet transaction execution for the frontend action buttons.
+1. Start the backend event poller from `backend/src/index.ts`.
+2. Implement the real create-event flow in the host dashboard.
+3. Complete the reserve-to-QR, check-in, and settlement demo flows.
 4. Record the hackathon demo flow.
