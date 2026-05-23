@@ -78,6 +78,10 @@ export interface CheckInPayloadInput {
   attendeeAddress: string;
 }
 
+export type CheckInPrecheckResult =
+  | { ok: true; reservation: ReservationSnapshot }
+  | { ok: false; reason: string };
+
 const DEFAULT_GAS_BUDGET = 100_000_000;
 
 export function settlementModeLabel(mode: SettlementMode): string {
@@ -192,6 +196,58 @@ export function buildCheckInPayload(input: CheckInPayloadInput): string {
     reservation_id: input.reservationObjectId,
     attendee: input.attendeeAddress,
   });
+}
+
+export function parseCheckInPayload(payload: string): CheckInPayloadInput {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payload);
+  } catch {
+    throw new Error("QR payload is not valid JSON.");
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("QR payload is not a NoFlake check-in payload.");
+  }
+
+  const data = parsed as Record<string, unknown>;
+  if (data.type !== "noflake_check_in") {
+    throw new Error("QR payload is not a NoFlake check-in payload.");
+  }
+
+  const eventObjectId = stringValue(data.event_id);
+  const reservationObjectId = stringValue(data.reservation_id);
+  const attendeeAddress = stringValue(data.attendee);
+  if (!eventObjectId || !reservationObjectId || !attendeeAddress) {
+    throw new Error("QR payload is missing required fields.");
+  }
+
+  return { eventObjectId, reservationObjectId, attendeeAddress };
+}
+
+export function validateCheckInPayloadForEvent(payload: CheckInPayloadInput, event: EventSnapshot): CheckInPrecheckResult {
+  if (payload.eventObjectId !== event.objectId) {
+    return { ok: false, reason: "QR payload belongs to a different event." };
+  }
+
+  const reservation = event.reservations.find((item) => item.objectId === payload.reservationObjectId);
+  if (!reservation) {
+    return { ok: false, reason: "Reservation was not found in the current event cache." };
+  }
+
+  if (reservation.attendeeAddress !== payload.attendeeAddress) {
+    return { ok: false, reason: "QR attendee does not match the reservation attendee." };
+  }
+
+  if (reservation.status !== "reserved") {
+    return { ok: false, reason: `Reservation is ${reservationStatusLabel(reservation.status)}, not reserved.` };
+  }
+
+  if (event.status !== "open" && event.status !== "full") {
+    return { ok: false, reason: `Event is ${eventStatusLabel(event.status)}, so check-in is closed.` };
+  }
+
+  return { ok: true, reservation };
 }
 
 export function buildReserveTransaction(

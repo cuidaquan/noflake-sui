@@ -8,7 +8,9 @@ import {
   buildCheckInPayload,
   extractCreatedEventRefs,
   extractReservationId,
+  parseCheckInPayload,
   selectReserveCoin,
+  validateCheckInPayloadForEvent,
   deriveNoShowCount,
   eventStatusLabel,
   formatShortAddress,
@@ -184,6 +186,115 @@ describe("NoFlake transaction builders", () => {
         attendee: "0xabc",
       }),
     );
+  });
+
+  it("parses a valid check-in QR payload", () => {
+    expect(
+      parseCheckInPayload(
+        JSON.stringify({
+          type: "noflake_check_in",
+          event_id: eventObjectId,
+          reservation_id: reservationObjectId,
+          attendee: "0xabc",
+        }),
+      ),
+    ).toEqual({
+      eventObjectId,
+      reservationObjectId,
+      attendeeAddress: "0xabc",
+    });
+  });
+
+  it("rejects malformed check-in QR payloads", () => {
+    expect(() => parseCheckInPayload("{bad json")).toThrow("QR payload is not valid JSON.");
+    expect(() => parseCheckInPayload(JSON.stringify({ type: "wrong" }))).toThrow("QR payload is not a NoFlake check-in payload.");
+    expect(() => parseCheckInPayload(JSON.stringify({ type: "noflake_check_in" }))).toThrow("QR payload is missing required fields.");
+  });
+
+  it("validates check-in payload against the current event and reservation state", () => {
+    const event = {
+      objectId: eventObjectId,
+      vaultObjectId,
+      hostAddress: "0xhost",
+      title: "Event",
+      depositAmount: "20",
+      seatCount: 3,
+      reservedCount: 1,
+      checkedInCount: 0,
+      settlementMode: "party" as const,
+      status: "open" as const,
+      updatedDigest: "digest",
+      reservations: [
+        {
+          objectId: reservationObjectId,
+          eventObjectId,
+          attendeeAddress: "0xabc",
+          depositAmount: "20",
+          status: "reserved" as const,
+          updatedDigest: "digest",
+        },
+      ],
+      settlement: null,
+    };
+
+    expect(
+      validateCheckInPayloadForEvent(
+        {
+          eventObjectId,
+          reservationObjectId,
+          attendeeAddress: "0xabc",
+        },
+        event,
+      ),
+    ).toEqual({ ok: true, reservation: event.reservations[0] });
+  });
+
+  it("returns local precheck errors before check-in signing", () => {
+    const event = {
+      objectId: eventObjectId,
+      vaultObjectId,
+      hostAddress: "0xhost",
+      title: "Event",
+      depositAmount: "20",
+      seatCount: 3,
+      reservedCount: 1,
+      checkedInCount: 0,
+      settlementMode: "party" as const,
+      status: "open" as const,
+      updatedDigest: "digest",
+      reservations: [
+        {
+          objectId: reservationObjectId,
+          eventObjectId,
+          attendeeAddress: "0xabc",
+          depositAmount: "20",
+          status: "checked_in_refunded" as const,
+          updatedDigest: "digest",
+        },
+      ],
+      settlement: null,
+    };
+
+    expect(
+      validateCheckInPayloadForEvent(
+        {
+          eventObjectId: "0xwrong",
+          reservationObjectId,
+          attendeeAddress: "0xabc",
+        },
+        event,
+      ),
+    ).toEqual({ ok: false, reason: "QR payload belongs to a different event." });
+    expect(
+      validateCheckInPayloadForEvent(
+        {
+          eventObjectId,
+          reservationObjectId,
+          attendeeAddress: "0xabc",
+        },
+        event,
+      ),
+    ).toEqual({ ok: false, reason: "Reservation is checked in refunded, not reserved." });
   });
 
   it("passes an exact deposit coin to reserve and transfers the returned reservation", () => {

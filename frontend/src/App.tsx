@@ -31,10 +31,13 @@ import {
   extractCreatedEventRefs,
   extractReservationId,
   formatShortAddress,
+  parseCheckInPayload,
   selectReserveCoin,
   reservationStatusLabel,
   settlementModeLabel,
+  validateCheckInPayloadForEvent,
   type CoinSnapshot,
+  type CheckInPayloadInput,
 } from "./sui";
 
 type ViewMode = "host" | "event" | "reservation";
@@ -53,6 +56,13 @@ interface CreatedEventState {
   eventObjectId: string;
   vaultObjectId: string;
   digest: string;
+}
+
+interface CheckInDraftState {
+  rawPayload: string;
+  parsed: CheckInPayloadInput | null;
+  reservation: ReservationSnapshot | null;
+  error: string;
 }
 
 const sampleReservations: ReservationSnapshot[] = [
@@ -121,6 +131,12 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
   const [txMessage, setTxMessage] = useState("Ready for testnet transactions.");
   const [createEventForm, setCreateEventForm] = useState<CreateEventFormState>(defaultCreateEventForm);
   const [createdEvent, setCreatedEvent] = useState<CreatedEventState | null>(null);
+  const [checkInDraft, setCheckInDraft] = useState<CheckInDraftState>({
+    rawPayload: "",
+    parsed: null,
+    reservation: null,
+    error: "Paste a NoFlake check-in QR payload to begin.",
+  });
 
   const account = useCurrentAccount({ dAppKit });
   const currentNetwork = useCurrentNetwork({ dAppKit });
@@ -343,6 +359,67 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
     setTxMessage(`Reserve: reservation ${formatShortAddress(reservation.objectId)} created.`);
   }
 
+  function handleCheckInPayloadChange(rawPayload: string) {
+    if (!rawPayload.trim()) {
+      setCheckInDraft({
+        rawPayload,
+        parsed: null,
+        reservation: null,
+        error: "Paste a NoFlake check-in QR payload to begin.",
+      });
+      return;
+    }
+
+    try {
+      const parsed = parseCheckInPayload(rawPayload);
+      const precheck = validateCheckInPayloadForEvent(parsed, event);
+      if (!precheck.ok) {
+        setCheckInDraft({ rawPayload, parsed, reservation: null, error: precheck.reason });
+        return;
+      }
+
+      setSelectedReservationId(precheck.reservation.objectId);
+      setCheckInDraft({ rawPayload, parsed, reservation: precheck.reservation, error: "" });
+    } catch (error) {
+      setCheckInDraft({
+        rawPayload,
+        parsed: null,
+        reservation: null,
+        error: error instanceof Error ? error.message : "QR payload could not be parsed.",
+      });
+    }
+  }
+
+  async function handleCheckIn(reservation: ReservationSnapshot) {
+    const result = await execute(
+      buildCheckInTransaction(txConfig, {
+        eventObjectId: event.objectId,
+        vaultObjectId: event.vaultObjectId,
+        reservationObjectId: reservation.objectId,
+      }),
+      "Check in and refund",
+    );
+    if (!result) return;
+
+    setEvent((current) => ({
+      ...current,
+      checkedInCount: current.reservations.some((item) => item.objectId === reservation.objectId && item.status === "reserved")
+        ? current.checkedInCount + 1
+        : current.checkedInCount,
+      reservations: current.reservations.map((item) =>
+        item.objectId === reservation.objectId
+          ? { ...item, status: "checked_in_refunded", updatedDigest: result.digest }
+          : item,
+      ),
+      updatedDigest: result.digest,
+    }));
+    setCheckInDraft((current) => ({
+      ...current,
+      reservation: { ...reservation, status: "checked_in_refunded", updatedDigest: result.digest },
+      error: "Checked in + refunded.",
+    }));
+  }
+
   const noShowCount = deriveNoShowCount(event);
   const vaultBalance = noShowCount * Number(event.depositAmount);
 
@@ -389,7 +466,9 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
             txConfig={txConfig}
             createEventForm={createEventForm}
             createdEvent={createdEvent}
+            checkInDraft={checkInDraft}
             onCreateEventFormChange={setCreateEventForm}
+            onCheckInPayloadChange={handleCheckInPayloadChange}
             onSelectReservation={setSelectedReservationId}
             onCreateEvent={handleCreateEvent}
             onSettle={() =>
@@ -401,16 +480,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
                 "Settle event",
               )
             }
-            onCheckIn={(reservation) =>
-              execute(
-                buildCheckInTransaction(txConfig, {
-                  eventObjectId: event.objectId,
-                  vaultObjectId: event.vaultObjectId,
-                  reservationObjectId: reservation.objectId,
-                }),
-                "Check in and refund",
-              )
-            }
+            onCheckIn={handleCheckIn}
           />
         ) : viewMode === "event" ? (
           <PublicEvent
@@ -462,7 +532,9 @@ function HostDashboard({
   txConfig,
   createEventForm,
   createdEvent,
+  checkInDraft,
   onCreateEventFormChange,
+  onCheckInPayloadChange,
   onSelectReservation,
   onCreateEvent,
   onCheckIn,
@@ -472,7 +544,9 @@ function HostDashboard({
   txConfig: { packageId: string; coinType: string };
   createEventForm: CreateEventFormState;
   createdEvent: CreatedEventState | null;
+  checkInDraft: CheckInDraftState;
   onCreateEventFormChange: (form: CreateEventFormState) => void;
+  onCheckInPayloadChange: (rawPayload: string) => void;
   onSelectReservation: (reservationId: string) => void;
   onCreateEvent: () => void;
   onCheckIn: (reservation: ReservationSnapshot) => void;
@@ -553,14 +627,28 @@ function HostDashboard({
 
       <section className="control-panel checkin-console">
         <PanelTitle icon={<ScanLine size={18} />} title="Check-in mode" />
-        <div className="scanner">
-          <ScanLine size={52} />
-          <div className="scan-bars" />
-        </div>
+        <label className="dark-label">
+          QR payload
+          <textarea
+            value={checkInDraft.rawPayload}
+            onChange={(event) => onCheckInPayloadChange(event.currentTarget.value)}
+            placeholder='{"type":"noflake_check_in","event_id":"0x...","reservation_id":"0x...","attendee":"0x..."}'
+          />
+        </label>
         <div className="confirm-sheet">
-          <span>{formatShortAddress(event.reservations[1]?.attendeeAddress ?? "")}</span>
-          <strong>Refund {event.depositAmount} USDC immediately</strong>
-          <button className="primary-action" onClick={() => onCheckIn(event.reservations[1] ?? event.reservations[0])}>
+          {checkInDraft.reservation ? (
+            <>
+              <span>{formatShortAddress(checkInDraft.reservation.attendeeAddress)}</span>
+              <strong>Refund {checkInDraft.reservation.depositAmount} USDC immediately</strong>
+              <small>{checkInDraft.reservation.objectId}</small>
+            </>
+          ) : (
+            <>
+              <span>Waiting for valid payload</span>
+              <strong>{checkInDraft.error}</strong>
+            </>
+          )}
+          <button className="primary-action" onClick={() => checkInDraft.reservation ? onCheckIn(checkInDraft.reservation) : undefined} disabled={!checkInDraft.reservation}>
             <BadgeCheck size={18} />
             Confirm check-in & refund
           </button>
