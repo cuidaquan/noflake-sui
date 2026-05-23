@@ -50,6 +50,9 @@ describe("NoFlake transaction builders", () => {
         eventObjectId,
         vaultObjectId,
         depositCoinObjectId: coinObjectId,
+        depositCoinBalance: "20",
+        depositAmount: "20",
+        attendeeAddress: "0x0000000000000000000000000000000000000000000000000000000000000abc",
       }),
     ).toBeInstanceOf(Transaction);
 
@@ -105,5 +108,69 @@ describe("NoFlake transaction builders", () => {
         "20",
       )?.coinObjectId,
     ).toBe("0x2");
+  });
+
+  it("passes an exact deposit coin to reserve and transfers the returned reservation", () => {
+    const attendeeAddress = "0x0000000000000000000000000000000000000000000000000000000000000abc";
+    const tx = buildReserveTransaction(config, {
+      eventObjectId,
+      vaultObjectId,
+      depositCoinObjectId: coinObjectId,
+      depositCoinBalance: "20",
+      depositAmount: "20",
+      attendeeAddress,
+    });
+
+    expect(tx.getData().commands).toHaveLength(2);
+    expect(tx.getData().commands[0]).toMatchObject({
+      MoveCall: {
+        package: config.packageId,
+        module: "noflake",
+        function: "reserve",
+      },
+    });
+    expect(tx.getData().commands[0].MoveCall?.arguments[2]).toMatchObject({ Input: 0, type: "object" });
+    expect(tx.getData().commands[1]).toMatchObject({
+      TransferObjects: {
+        objects: [{ Result: 0 }],
+      },
+    });
+  });
+
+  it("splits an oversized deposit coin before reserve and transfers the returned reservation", () => {
+    const attendeeAddress = "0x0000000000000000000000000000000000000000000000000000000000000abc";
+    const tx = buildReserveTransaction(config, {
+      eventObjectId,
+      vaultObjectId,
+      depositCoinObjectId: coinObjectId,
+      depositCoinBalance: "100",
+      depositAmount: "20",
+      attendeeAddress,
+    });
+
+    expect(tx.getData().commands).toHaveLength(3);
+    expect(tx.getData().commands[0]).toMatchObject({
+      SplitCoins: {
+        coin: { Input: 0, type: "object" },
+        amounts: [{ Input: 1, type: "pure" }],
+      },
+    });
+    expect(tx.getData().commands[1]).toMatchObject({
+      MoveCall: {
+        package: config.packageId,
+        module: "noflake",
+        function: "reserve",
+        arguments: [
+          { Input: 2, type: "object" },
+          { Input: 3, type: "object" },
+          { NestedResult: [0, 0] },
+        ],
+      },
+    });
+    expect(tx.getData().commands[2]).toMatchObject({
+      TransferObjects: {
+        objects: [{ Result: 1 }],
+      },
+    });
   });
 });

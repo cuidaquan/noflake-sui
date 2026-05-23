@@ -184,6 +184,9 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
         eventObjectId: event.objectId,
         vaultObjectId: event.vaultObjectId,
         depositCoinObjectId: reserveCoin.coinObjectId,
+        depositCoinBalance: reserveCoin.balance,
+        depositAmount: event.depositAmount,
+        attendeeAddress: account.address,
       }),
       "Reserve",
     );

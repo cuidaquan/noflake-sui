@@ -113,11 +113,26 @@ export function buildReserveTransaction(
     eventObjectId: string;
     vaultObjectId: string;
     depositCoinObjectId: string;
+    depositCoinBalance: bigint | number | string;
+    depositAmount: bigint | number | string;
+    attendeeAddress: string;
   },
 ): Transaction {
   const tx = new Transaction();
   tx.setGasBudget(config.gasBudget ?? DEFAULT_GAS_BUDGET);
-  tx.moveCall({
+
+  const depositAmount = BigInt(input.depositAmount);
+  const depositCoinBalance = BigInt(input.depositCoinBalance);
+  if (depositCoinBalance < depositAmount) {
+    throw new Error("Deposit coin balance is lower than the required deposit amount.");
+  }
+
+  const depositCoin =
+    depositCoinBalance === depositAmount
+      ? tx.object(input.depositCoinObjectId)
+      : tx.splitCoins(tx.object(input.depositCoinObjectId), [input.depositAmount])[0];
+
+  const reservation = tx.moveCall({
     package: config.packageId,
     module: "noflake",
     function: "reserve",
@@ -125,9 +140,10 @@ export function buildReserveTransaction(
     arguments: [
       tx.object(input.eventObjectId),
       tx.object(input.vaultObjectId),
-      tx.object(input.depositCoinObjectId),
+      depositCoin,
     ],
   });
+  tx.transferObjects([reservation], input.attendeeAddress);
   return tx;
 }
 
