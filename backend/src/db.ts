@@ -32,6 +32,13 @@ export function createDatabase(path: string): NoFlakeDatabase {
         .get(eventObjectId) as SettlementRow | undefined;
       return row ? mapSettlement(row) : undefined;
     },
+    hasProcessedEvent: (eventKey) => {
+      const row = db.prepare("select event_key from processed_events where event_key = ?").get(eventKey) as { event_key: string } | undefined;
+      return Boolean(row);
+    },
+    markProcessedEvent: (eventKey) => {
+      db.prepare("insert or ignore into processed_events (event_key) values (?)").run(eventKey);
+    },
     upsertEvent: (event) => {
       db.prepare(
         `insert into events (
@@ -125,6 +132,10 @@ function migrate(db: SqliteDatabase): void {
       forfeited_amount text not null,
       distributed_amount text not null,
       settled_digest text not null
+    );
+
+    create table if not exists processed_events (
+      event_key text primary key
     );
   `);
 }

@@ -42,6 +42,8 @@ export interface NoFlakeDatabase {
   getReservationsForEvent(eventObjectId: string): CachedReservation[];
   getReservation(objectId: string): CachedReservation | undefined;
   getSettlementForEvent(eventObjectId: string): CachedSettlement | undefined;
+  hasProcessedEvent(eventKey: string): boolean;
+  markProcessedEvent(eventKey: string): void;
   upsertEvent(event: CachedEvent): void;
   upsertReservation(reservation: CachedReservation): void;
   upsertSettlement(settlement: CachedSettlement): void;

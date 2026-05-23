@@ -3,6 +3,7 @@ export interface BackendConfig {
   host: string;
   packageId: string;
   port: number;
+  pollIntervalMs: number;
   suiNetwork: "testnet" | "mainnet" | "devnet" | "localnet";
 }
 
@@ -11,6 +12,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig 
     databasePath: env.NOFLAKE_DB_PATH ?? "noflake-cache.sqlite",
     host: env.HOST ?? "127.0.0.1",
     packageId: env.NOFLAKE_PACKAGE_ID ?? "",
+    pollIntervalMs: Number(env.NOFLAKE_POLL_INTERVAL_MS ?? 5_000),
     port: Number(env.PORT ?? 8787),
     suiNetwork: parseNetwork(env.SUI_NETWORK),
   };
