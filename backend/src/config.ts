@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { loadEnvFile } from "node:process";
+
 export interface BackendConfig {
   databasePath: string;
   host: string;
@@ -7,7 +10,15 @@ export interface BackendConfig {
   suiNetwork: "testnet" | "mainnet" | "devnet" | "localnet";
 }
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): BackendConfig {
+export function loadConfig(envFilePath = ".env"): BackendConfig {
+  if (existsSync(envFilePath)) {
+    loadEnvFile(envFilePath);
+  }
+
+  return parseConfig(process.env);
+}
+
+export function parseConfig(env: NodeJS.ProcessEnv): BackendConfig {
   return {
     databasePath: env.NOFLAKE_DB_PATH ?? "noflake-cache.sqlite",
     host: env.HOST ?? "127.0.0.1",
