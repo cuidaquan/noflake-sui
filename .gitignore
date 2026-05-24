@@ -8,6 +8,9 @@ build/
 .env
 .env.local
 .env.*.local
+backend/*.sqlite
+backend/*.sqlite-shm
+backend/*.sqlite-wal
 
 contracts/build/
 contracts/.coverage_map.mvcov
