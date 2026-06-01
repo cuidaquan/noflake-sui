@@ -5,6 +5,7 @@ import {
   buildCreateEventTransaction,
   buildReserveTransaction,
   buildSettleEventTransaction,
+  canSettleEvent,
   buildCheckInPayload,
   explorerObjectUrl,
   explorerTransactionUrl,
@@ -92,6 +93,8 @@ describe("NoFlake transaction builders", () => {
         vaultObjectId: "0xvault",
         hostAddress: "0xhost",
         title: "Event",
+        startMs: 1_000,
+        endMs: 2_000,
         depositAmount: "20",
         seatCount: 3,
         reservedCount: 3,
@@ -117,6 +120,8 @@ describe("NoFlake transaction builders", () => {
         vaultObjectId: "0xvault",
         hostAddress: "0xhost",
         title: "Event",
+        startMs: 1_000,
+        endMs: 2_000,
         depositAmount: "20",
         seatCount: 3,
         reservedCount: 3,
@@ -284,6 +289,8 @@ describe("NoFlake transaction builders", () => {
       vaultObjectId,
       hostAddress: "0xhost",
       title: "Event",
+      startMs: 1_000,
+      endMs: 2_000,
       depositAmount: "20",
       seatCount: 3,
       reservedCount: 1,
@@ -322,6 +329,8 @@ describe("NoFlake transaction builders", () => {
       vaultObjectId,
       hostAddress: "0xhost",
       title: "Event",
+      startMs: 1_000,
+      endMs: 2_000,
       depositAmount: "20",
       seatCount: 3,
       reservedCount: 1,
@@ -426,5 +435,32 @@ describe("NoFlake transaction builders", () => {
         objects: [{ Result: 1 }],
       },
     });
+  });
+
+  it("passes the Sui Clock object to settlement calls", () => {
+    const tx = buildSettleEventTransaction(config, { eventObjectId, vaultObjectId });
+    expect(tx.getData().commands[0]).toMatchObject({
+      MoveCall: {
+        function: "settle_event",
+        arguments: [
+          { Input: 0, type: "object" },
+          { Input: 1, type: "object" },
+          { Input: 2, type: "object" },
+        ],
+      },
+    });
+    expect(tx.getData().inputs[2]).toMatchObject({
+      UnresolvedObject: {
+        objectId: "0x0000000000000000000000000000000000000000000000000000000000000006",
+      },
+    });
+  });
+
+  it("rejects settlement before the event end time", () => {
+    expect(canSettleEvent({ endMs: 2_000 }, 1_999)).toEqual({
+      ok: false,
+      reason: "Settle event: wait until the event end time.",
+    });
+    expect(canSettleEvent({ endMs: 2_000 }, 2_000)).toEqual({ ok: true });
   });
 });

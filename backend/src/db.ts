@@ -42,16 +42,18 @@ export function createDatabase(path: string): NoFlakeDatabase {
     upsertEvent: (event) => {
       db.prepare(
         `insert into events (
-          object_id, vault_object_id, host_address, title, deposit_amount, seat_count, reserved_count,
+          object_id, vault_object_id, host_address, title, start_ms, end_ms, deposit_amount, seat_count, reserved_count,
           checked_in_count, settlement_mode, status, updated_digest
         ) values (
-          @objectId, @vaultObjectId, @hostAddress, @title, @depositAmount, @seatCount, @reservedCount,
+          @objectId, @vaultObjectId, @hostAddress, @title, @startMs, @endMs, @depositAmount, @seatCount, @reservedCount,
           @checkedInCount, @settlementMode, @status, @updatedDigest
         )
         on conflict(object_id) do update set
           vault_object_id = excluded.vault_object_id,
           host_address = excluded.host_address,
           title = excluded.title,
+          start_ms = excluded.start_ms,
+          end_ms = excluded.end_ms,
           deposit_amount = excluded.deposit_amount,
           seat_count = excluded.seat_count,
           reserved_count = excluded.reserved_count,
@@ -105,6 +107,8 @@ function migrate(db: SqliteDatabase): void {
       host_address text not null,
       vault_object_id text not null,
       title text not null,
+      start_ms integer not null,
+      end_ms integer not null,
       deposit_amount text not null,
       seat_count integer not null,
       reserved_count integer not null,
@@ -138,6 +142,16 @@ function migrate(db: SqliteDatabase): void {
       event_key text primary key
     );
   `);
+
+  addColumnIfMissing(db, "events", "start_ms", "integer not null default 0");
+  addColumnIfMissing(db, "events", "end_ms", "integer not null default 0");
+}
+
+function addColumnIfMissing(db: SqliteDatabase, table: string, column: string, declaration: string): void {
+  const columns = db.prepare(`pragma table_info(${table})`).all() as Array<{ name: string }>;
+  if (!columns.some((item) => item.name === column)) {
+    db.exec(`alter table ${table} add column ${column} ${declaration}`);
+  }
 }
 
 interface EventRow {
@@ -145,6 +159,8 @@ interface EventRow {
   vault_object_id: string;
   host_address: string;
   title: string;
+  start_ms: number;
+  end_ms: number;
   deposit_amount: string;
   seat_count: number;
   reserved_count: number;
@@ -180,6 +196,8 @@ function mapEvent(row: EventRow): CachedEvent {
     vaultObjectId: row.vault_object_id,
     hostAddress: row.host_address,
     title: row.title,
+    startMs: row.start_ms,
+    endMs: row.end_ms,
     depositAmount: row.deposit_amount,
     seatCount: row.seat_count,
     reservedCount: row.reserved_count,

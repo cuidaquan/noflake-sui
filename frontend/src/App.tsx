@@ -26,6 +26,7 @@ import {
   buildCreateEventTransaction,
   buildReserveTransaction,
   buildSettleEventTransaction,
+  canSettleEvent,
   deriveNoShowCount,
   deriveSettlementPreview,
   eventStatusLabel,
@@ -101,6 +102,8 @@ const sampleEvent: EventSnapshot = {
   vaultObjectId: "0xvault_9f3a",
   hostAddress: "0xhost...dinner",
   title: "Sui Builder Dinner",
+  startMs: new Date("2026-06-01T19:00").getTime(),
+  endMs: new Date("2026-06-01T22:00").getTime(),
   depositAmount: "20",
   seatCount: 3,
   reservedCount: 3,
@@ -298,6 +301,8 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
       vaultObjectId: refs.vaultObjectId,
       hostAddress: account?.address ?? sampleEvent.hostAddress,
       title,
+      startMs,
+      endMs,
       depositAmount: String(depositAmount),
       seatCount,
       reservedCount: 0,
@@ -451,6 +456,13 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
   }
 
   async function handleSettle() {
+    const precheck = canSettleEvent(event);
+    if (!precheck.ok) {
+      setTxState("error");
+      setTxMessage(precheck.reason);
+      return;
+    }
+
     const result = await execute(
       buildSettleEventTransaction(txConfig, {
         eventObjectId: event.objectId,

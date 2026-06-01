@@ -37,6 +37,8 @@ export interface EventSnapshot {
   vaultObjectId: string;
   hostAddress: string;
   title: string;
+  startMs: number;
+  endMs: number;
   depositAmount: string;
   seatCount: number;
   reservedCount: number;
@@ -82,12 +84,16 @@ export type CheckInPrecheckResult =
   | { ok: true; reservation: ReservationSnapshot }
   | { ok: false; reason: string };
 
+export type SettleEventPrecheckResult = { ok: true } | { ok: false; reason: string };
+
 export interface SettlementPreview {
   noShowCount: number;
   vaultBalance: number;
   distributionLabel: string;
   checkedInRefundedAmount: number;
 }
+
+const SUI_CLOCK_OBJECT_ID = "0x6";
 
 const DEFAULT_GAS_BUDGET = 100_000_000;
 
@@ -372,9 +378,16 @@ export function buildSettleEventTransaction(
     module: "noflake",
     function: "settle_event",
     typeArguments: [config.coinType],
-    arguments: [tx.object(input.eventObjectId), tx.object(input.vaultObjectId)],
+    arguments: [tx.object(input.eventObjectId), tx.object(input.vaultObjectId), tx.object(SUI_CLOCK_OBJECT_ID)],
   });
   return tx;
+}
+
+export function canSettleEvent(event: Pick<EventSnapshot, "endMs">, nowMs = Date.now()): SettleEventPrecheckResult {
+  if (nowMs < event.endMs) {
+    return { ok: false, reason: "Settle event: wait until the event end time." };
+  }
+  return { ok: true };
 }
 
 export function formatShortAddress(address: string): string {

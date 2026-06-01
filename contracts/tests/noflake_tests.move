@@ -2,6 +2,7 @@
 module noflake::noflake_tests;
 
 use std::string;
+use sui::clock::{Self, Clock};
 use sui::coin;
 use sui::test_scenario;
 use sui::transfer;
@@ -96,6 +97,7 @@ fun strict_settlement_transfers_no_show_deposit_to_host() {
     let host = @0xA;
     let attendee = @0xB;
     let mut scenario = test_scenario::begin(host);
+    scenario.create_system_objects();
 
     noflake::create_event<TEST_USDC>(
         string::utf8(b"Sui Builder Dinner"),
@@ -121,14 +123,17 @@ fun strict_settlement_transfers_no_show_deposit_to_host() {
     scenario.next_tx(host);
     let mut event = scenario.take_shared<noflake::Event>();
     let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
+    let mut clock = scenario.take_shared<Clock>();
+    clock.set_for_testing(2_000);
 
-    noflake::settle_event(&mut event, &mut vault, scenario.ctx());
+    noflake::settle_event(&mut event, &mut vault, &clock, scenario.ctx());
 
     assert!(noflake::event_status(&event) == noflake::event_status_settled());
     assert!(noflake::vault_balance(&vault) == 0);
 
     test_scenario::return_shared(event);
     test_scenario::return_shared(vault);
+    test_scenario::return_shared(clock);
 
     scenario.next_tx(host);
     let forfeited = scenario.take_from_sender<coin::Coin<TEST_USDC>>();
@@ -148,6 +153,7 @@ fun party_settlement_distributes_no_show_deposit_to_checked_in_attendee() {
     let attendee_one = @0xB;
     let attendee_two = @0xC;
     let mut scenario = test_scenario::begin(host);
+    scenario.create_system_objects();
 
     noflake::create_event<TEST_USDC>(
         string::utf8(b"Sui Builder Dinner"),
@@ -194,10 +200,13 @@ fun party_settlement_distributes_no_show_deposit_to_checked_in_attendee() {
     scenario.next_tx(host);
     let mut event = scenario.take_shared<noflake::Event>();
     let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
-    noflake::settle_event(&mut event, &mut vault, scenario.ctx());
+    let mut clock = scenario.take_shared<Clock>();
+    clock.set_for_testing(2_000);
+    noflake::settle_event(&mut event, &mut vault, &clock, scenario.ctx());
     assert!(noflake::vault_balance(&vault) == 0);
     test_scenario::return_shared(event);
     test_scenario::return_shared(vault);
+    test_scenario::return_shared(clock);
 
     scenario.next_tx(attendee_one);
     let reward = scenario.take_from_sender<coin::Coin<TEST_USDC>>();
@@ -357,5 +366,34 @@ fun attendee_can_reserve_again_after_cancelling() {
     assert!(coin::value(&refund) == 20);
     coin::burn_for_testing(refund);
 
+    scenario.end();
+}
+
+#[test, expected_failure]
+fun event_rejects_settlement_before_end_time() {
+    let host = @0xA;
+    let mut scenario = test_scenario::begin(host);
+    scenario.create_system_objects();
+
+    noflake::create_event<TEST_USDC>(
+        string::utf8(b"Sui Builder Dinner"),
+        1_000,
+        2_000,
+        20,
+        1,
+        noflake::settlement_mode_strict(),
+        scenario.ctx(),
+    );
+
+    scenario.next_tx(host);
+    let mut event = scenario.take_shared<noflake::Event>();
+    let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
+    let mut clock = scenario.take_shared<Clock>();
+    clock.set_for_testing(1_999);
+    noflake::settle_event(&mut event, &mut vault, &clock, scenario.ctx());
+
+    test_scenario::return_shared(event);
+    test_scenario::return_shared(vault);
+    test_scenario::return_shared(clock);
     scenario.end();
 }

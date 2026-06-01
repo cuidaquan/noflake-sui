@@ -130,6 +130,8 @@ function applyEvent(db: NoFlakeDatabase, event: SuiEvent): number {
       vaultObjectId: stringField(data, "vault_id"),
       hostAddress: stringField(data, "host"),
       title: stringField(data, "title"),
+      startMs: numberField(data, "start_ms"),
+      endMs: numberField(data, "end_ms"),
       depositAmount: stringField(data, "deposit_amount"),
       seatCount: numberField(data, "seat_count"),
       reservedCount: 0,

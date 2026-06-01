@@ -27,6 +27,8 @@ export interface EventSnapshot {
   vaultObjectId: string;
   hostAddress: string;
   title: string;
+  startMs: number;
+  endMs: number;
   depositAmount: string;
   seatCount: number;
   reservedCount: number;

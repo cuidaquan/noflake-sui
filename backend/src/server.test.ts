@@ -10,6 +10,8 @@ describe("backend api", () => {
       vaultObjectId: "0xvault",
       hostAddress: "0xhost",
       title: "Sui Builder Dinner",
+      startMs: 1_000,
+      endMs: 2_000,
       depositAmount: "20",
       seatCount: 2,
       reservedCount: 1,
@@ -26,6 +28,8 @@ describe("backend api", () => {
     expect(response.json()).toMatchObject({
       objectId: "0xevent",
       title: "Sui Builder Dinner",
+      startMs: 1_000,
+      endMs: 2_000,
       checkedInCount: 1,
     });
 

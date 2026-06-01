@@ -2,6 +2,7 @@ module noflake::noflake;
 
 use std::string::String;
 use sui::balance::{Self, Balance};
+use sui::clock::{Self, Clock};
 use sui::coin::{Self, Coin};
 use sui::event;
 use sui::object::{Self, ID, UID};
@@ -30,6 +31,7 @@ const E_NOT_HOST: u64 = 7;
 const E_WRONG_EVENT: u64 = 8;
 const E_INVALID_RESERVATION_STATUS: u64 = 9;
 const E_DUPLICATE_RESERVATION: u64 = 10;
+const E_EVENT_NOT_ENDED: u64 = 11;
 
 public struct Event has key, store {
     id: UID,
@@ -81,6 +83,8 @@ public struct EventCreated has copy, drop {
     vault_id: ID,
     host: address,
     title: String,
+    start_ms: u64,
+    end_ms: u64,
     deposit_amount: u64,
     seat_count: u64,
     settlement_mode: u8,
@@ -214,6 +218,8 @@ public fun create_event<T>(
         vault_id: object::id(&vault),
         host,
         title,
+        start_ms,
+        end_ms,
         deposit_amount,
         seat_count,
         settlement_mode,
@@ -329,11 +335,13 @@ public fun cancel_reservation<T>(
 public fun settle_event<T>(
     event: &mut Event,
     vault: &mut EventVault<T>,
+    clock: &Clock,
     ctx: &mut TxContext,
 ) {
     assert!(tx_context::sender(ctx) == event.host, E_NOT_HOST);
     assert!(vault.event_id == object::id(event), E_WRONG_EVENT);
     assert!(event.status != STATUS_SETTLED, E_EVENT_CLOSED);
+    assert!(clock::timestamp_ms(clock) >= event.end_ms, E_EVENT_NOT_ENDED);
 
     let remaining = vault.balance.value();
     let mut distributed_amount = 0;

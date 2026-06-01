@@ -14,6 +14,8 @@ describe("NoFlake event poller", () => {
         vault_id: "0xvault",
         host: "0xhost",
         title: "Sui Builder Dinner",
+        start_ms: "1000",
+        end_ms: "2000",
         deposit_amount: "20",
         seat_count: "3",
         settlement_mode: "1",
@@ -51,6 +53,8 @@ describe("NoFlake event poller", () => {
     expect(db.getEvent("0xevent")).toMatchObject({
       reservedCount: 2,
       checkedInCount: 1,
+      startMs: 1_000,
+      endMs: 2_000,
       status: "settled",
     });
     expect(db.getReservation("0xreservation-a")?.status).toBe("checked_in_refunded");
@@ -72,6 +76,8 @@ describe("NoFlake event poller", () => {
         vault_id: "0xvault",
         host: "0xhost",
         title: "Sui Builder Dinner",
+        start_ms: "1000",
+        end_ms: "2000",
         deposit_amount: "20",
         seat_count: "3",
         settlement_mode: "0",
