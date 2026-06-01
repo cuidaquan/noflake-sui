@@ -29,6 +29,7 @@ const E_DEPOSIT_MISMATCH: u64 = 6;
 const E_NOT_HOST: u64 = 7;
 const E_WRONG_EVENT: u64 = 8;
 const E_INVALID_RESERVATION_STATUS: u64 = 9;
+const E_DUPLICATE_RESERVATION: u64 = 10;
 
 public struct Event has key, store {
     id: UID,
@@ -41,6 +42,7 @@ public struct Event has key, store {
     reserved_count: u64,
     checked_in_count: u64,
     checked_in_attendees: vector<address>,
+    registered_attendees: vector<address>,
     settlement_mode: u8,
     status: u8,
     created_at_ms: u64,
@@ -195,6 +197,7 @@ public fun create_event<T>(
         reserved_count: 0,
         checked_in_count: 0,
         checked_in_attendees: vector[],
+        registered_attendees: vector[],
         settlement_mode,
         status: STATUS_OPEN,
         created_at_ms: 0,
@@ -232,6 +235,7 @@ public fun reserve<T>(
     assert!(deposit.value() == event.deposit_amount, E_DEPOSIT_MISMATCH);
 
     let attendee = tx_context::sender(ctx);
+    assert!(!event.registered_attendees.contains(&attendee), E_DUPLICATE_RESERVATION);
     let reservation = Reservation {
         id: object::new(ctx),
         event_id: object::id(event),
@@ -243,6 +247,7 @@ public fun reserve<T>(
     };
     let reservation_id = object::id(&reservation);
 
+    event.registered_attendees.push_back(attendee);
     coin::put(&mut vault.balance, deposit);
     event.reserved_count = event.reserved_count + 1;
     if (event.reserved_count == event.seat_count) {
@@ -298,6 +303,9 @@ public fun cancel_reservation<T>(
     assert!(vault.event_id == object::id(event), E_WRONG_EVENT);
     assert!(reservation.event_id == object::id(event), E_WRONG_EVENT);
     assert!(reservation.status == RESERVATION_RESERVED, E_INVALID_RESERVATION_STATUS);
+    let (registered, attendee_index) = event.registered_attendees.index_of(&reservation.attendee);
+    assert!(registered, E_INVALID_RESERVATION_STATUS);
+    event.registered_attendees.remove(attendee_index);
 
     let refund_amount = reservation.deposit_amount;
     let refund = coin::take(&mut vault.balance, refund_amount, ctx);

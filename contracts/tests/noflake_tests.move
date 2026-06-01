@@ -283,3 +283,79 @@ fun event_rejects_reservation_after_capacity_is_full() {
     test_scenario::return_shared(vault);
     scenario.end();
 }
+
+#[test, expected_failure]
+fun event_rejects_duplicate_active_reservation() {
+    let host = @0xA;
+    let attendee = @0xB;
+    let mut scenario = test_scenario::begin(host);
+
+    noflake::create_event<TEST_USDC>(
+        string::utf8(b"Sui Builder Dinner"),
+        1_000,
+        2_000,
+        20,
+        2,
+        noflake::settlement_mode_strict(),
+        scenario.ctx(),
+    );
+
+    scenario.next_tx(attendee);
+    let mut event = scenario.take_shared<noflake::Event>();
+    let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
+
+    let first_deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
+    let first_reservation = noflake::reserve(&mut event, &mut vault, first_deposit, scenario.ctx());
+    transfer::public_transfer(first_reservation, attendee);
+
+    let second_deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
+    let second_reservation = noflake::reserve(&mut event, &mut vault, second_deposit, scenario.ctx());
+    transfer::public_transfer(second_reservation, attendee);
+
+    test_scenario::return_shared(event);
+    test_scenario::return_shared(vault);
+    scenario.end();
+}
+
+#[test]
+fun attendee_can_reserve_again_after_cancelling() {
+    let host = @0xA;
+    let attendee = @0xB;
+    let mut scenario = test_scenario::begin(host);
+
+    noflake::create_event<TEST_USDC>(
+        string::utf8(b"Sui Builder Dinner"),
+        1_000,
+        2_000,
+        20,
+        1,
+        noflake::settlement_mode_strict(),
+        scenario.ctx(),
+    );
+
+    scenario.next_tx(attendee);
+    let mut event = scenario.take_shared<noflake::Event>();
+    let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
+
+    let first_deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
+    let mut cancelled_reservation = noflake::reserve(&mut event, &mut vault, first_deposit, scenario.ctx());
+    noflake::cancel_reservation(&mut event, &mut vault, &mut cancelled_reservation, scenario.ctx());
+
+    let second_deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
+    let second_reservation = noflake::reserve(&mut event, &mut vault, second_deposit, scenario.ctx());
+
+    assert!(noflake::reserved_count(&event) == 1);
+    assert!(noflake::vault_balance(&vault) == 20);
+
+    test_scenario::return_shared(event);
+    test_scenario::return_shared(vault);
+    transfer::public_transfer(cancelled_reservation, attendee);
+    transfer::public_transfer(second_reservation, attendee);
+
+    scenario.next_tx(attendee);
+    let refund = scenario.take_from_sender<coin::Coin<TEST_USDC>>();
+    assert!(coin::value(&refund) == 20);
+    coin::burn_for_testing(refund);
+
+    scenario.end();
+}
