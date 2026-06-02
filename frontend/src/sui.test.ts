@@ -9,6 +9,7 @@ import {
   buildCheckInPayload,
   explorerObjectUrl,
   explorerTransactionUrl,
+  buildDefaultCreateEventTimes,
   extractCreatedEventRefs,
   extractReservationId,
   parseCheckInPayload,
@@ -18,7 +19,9 @@ import {
   deriveSettlementPreview,
   eventStatusLabel,
   extractSettlementSnapshot,
+  formatUsdcAmountFromAtomicUnits,
   formatShortAddress,
+  parseUsdcAmountToAtomicUnits,
   reservationStatusLabel,
   settlementModeLabel,
 } from "./sui";
@@ -34,6 +37,31 @@ const reservationObjectId = "0x0000000000000000000000000000000000000000000000000
 const coinObjectId = "0x00000000000000000000000000000000000000000000000000000000000000c1";
 
 describe("NoFlake transaction builders", () => {
+  it("converts display USDC amounts to atomic units", () => {
+    expect(parseUsdcAmountToAtomicUnits("20")).toBe("20000000");
+    expect(parseUsdcAmountToAtomicUnits("20.5")).toBe("20500000");
+    expect(parseUsdcAmountToAtomicUnits("0.000001")).toBe("1");
+  });
+
+  it("formats atomic USDC units for display", () => {
+    expect(formatUsdcAmountFromAtomicUnits("20000000")).toBe("20");
+    expect(formatUsdcAmountFromAtomicUnits("20500000")).toBe("20.5");
+    expect(formatUsdcAmountFromAtomicUnits("1")).toBe("0.000001");
+  });
+
+  it("rejects invalid display USDC amounts", () => {
+    for (const value of ["", "0", "-1", "1e2", "0.0000001", "abc"]) {
+      expect(() => parseUsdcAmountToAtomicUnits(value)).toThrow("Enter a valid USDC amount with up to 6 decimal places.");
+    }
+  });
+
+  it("builds create event defaults from the next local hour", () => {
+    expect(buildDefaultCreateEventTimes(new Date(2026, 5, 2, 16, 20))).toEqual({
+      startLocal: "2026-06-02T17:00",
+      endLocal: "2026-06-02T20:00",
+    });
+  });
+
   it("builds create event calls with the configured package and coin type", () => {
     const tx = buildCreateEventTransaction(config, {
       title: "Sui Builder Dinner",
@@ -60,8 +88,8 @@ describe("NoFlake transaction builders", () => {
         eventObjectId,
         vaultObjectId,
         depositCoinObjectId: coinObjectId,
-        depositCoinBalance: "20",
-        depositAmount: "20",
+        depositCoinBalance: "20000000",
+        depositAmount: "20000000",
         attendeeAddress: "0x0000000000000000000000000000000000000000000000000000000000000abc",
       }),
     ).toBeInstanceOf(Transaction);
@@ -122,7 +150,7 @@ describe("NoFlake transaction builders", () => {
         title: "Event",
         startMs: 1_000,
         endMs: 2_000,
-        depositAmount: "20",
+        depositAmount: "20000000",
         seatCount: 3,
         reservedCount: 3,
         checkedInCount: 2,
@@ -134,9 +162,9 @@ describe("NoFlake transaction builders", () => {
       }),
     ).toEqual({
       noShowCount: 1,
-      vaultBalance: 20,
+      vaultBalance: "20",
       distributionLabel: "Checked-in attendees",
-      checkedInRefundedAmount: 40,
+      checkedInRefundedAmount: "40",
     });
   });
 
@@ -144,12 +172,12 @@ describe("NoFlake transaction builders", () => {
     expect(
       selectReserveCoin(
         [
-          { coinObjectId: "0x1", coinType: config.coinType, balance: "15", digest: "d1", version: "1" },
-          { coinObjectId: "0x2", coinType: config.coinType, balance: "25", digest: "d2", version: "1" },
-          { coinObjectId: "0x3", coinType: "0xother::coin::COIN", balance: "100", digest: "d3", version: "1" },
+          { coinObjectId: "0x1", coinType: config.coinType, balance: "15000000", digest: "d1", version: "1" },
+          { coinObjectId: "0x2", coinType: config.coinType, balance: "25000000", digest: "d2", version: "1" },
+          { coinObjectId: "0x3", coinType: "0xother::coin::COIN", balance: "100000000", digest: "d3", version: "1" },
         ],
         config.coinType,
-        "20",
+        "20000000",
       )?.coinObjectId,
     ).toBe("0x2");
   });
@@ -379,8 +407,8 @@ describe("NoFlake transaction builders", () => {
       eventObjectId,
       vaultObjectId,
       depositCoinObjectId: coinObjectId,
-      depositCoinBalance: "20",
-      depositAmount: "20",
+      depositCoinBalance: "20000000",
+      depositAmount: "20000000",
       attendeeAddress,
     });
 
@@ -406,8 +434,8 @@ describe("NoFlake transaction builders", () => {
       eventObjectId,
       vaultObjectId,
       depositCoinObjectId: coinObjectId,
-      depositCoinBalance: "100",
-      depositAmount: "20",
+      depositCoinBalance: "100000000",
+      depositAmount: "20000000",
       attendeeAddress,
     });
 

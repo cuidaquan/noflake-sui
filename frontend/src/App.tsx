@@ -24,6 +24,7 @@ import {
   buildCheckInPayload,
   buildCheckInTransaction,
   buildCreateEventTransaction,
+  buildDefaultCreateEventTimes,
   buildReserveTransaction,
   buildSettleEventTransaction,
   canSettleEvent,
@@ -36,7 +37,9 @@ import {
   extractReservationId,
   extractSettlementSnapshot,
   formatShortAddress,
+  formatUsdcAmountFromAtomicUnits,
   parseCheckInPayload,
+  parseUsdcAmountToAtomicUnits,
   selectReserveCoin,
   reservationStatusLabel,
   settlementModeLabel,
@@ -75,7 +78,7 @@ const sampleReservations: ReservationSnapshot[] = [
     objectId: "0xres_a71c",
     eventObjectId: "0xevent_9f3a",
     attendeeAddress: "0x8f7d...4a12",
-    depositAmount: "20",
+    depositAmount: "20000000",
     status: "checked_in_refunded",
     updatedDigest: "9Tn...a2",
   },
@@ -83,7 +86,7 @@ const sampleReservations: ReservationSnapshot[] = [
     objectId: "0xres_c25e",
     eventObjectId: "0xevent_9f3a",
     attendeeAddress: "0x2a91...b771",
-    depositAmount: "20",
+    depositAmount: "20000000",
     status: "reserved",
     updatedDigest: "7Rc...91",
   },
@@ -91,7 +94,7 @@ const sampleReservations: ReservationSnapshot[] = [
     objectId: "0xres_e940",
     eventObjectId: "0xevent_9f3a",
     attendeeAddress: "0x55b2...90ec",
-    depositAmount: "20",
+    depositAmount: "20000000",
     status: "reserved",
     updatedDigest: "4Lm...d8",
   },
@@ -104,7 +107,7 @@ const sampleEvent: EventSnapshot = {
   title: "Sui Builder Dinner",
   startMs: new Date("2026-06-01T19:00").getTime(),
   endMs: new Date("2026-06-01T22:00").getTime(),
-  depositAmount: "20",
+  depositAmount: "20000000",
   seatCount: 3,
   reservedCount: 3,
   checkedInCount: 1,
@@ -120,14 +123,15 @@ const coinType =
   import.meta.env.VITE_NOFLAKE_COIN_TYPE ??
   "0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC";
 
-const defaultCreateEventForm: CreateEventFormState = {
-  title: "Sui Builder Dinner",
-  startLocal: "2026-06-01T19:00",
-  endLocal: "2026-06-01T22:00",
-  depositAmount: "20",
-  seatCount: "3",
-  settlementMode: "party",
-};
+function createDefaultCreateEventForm(): CreateEventFormState {
+  return {
+    title: "Sui Builder Dinner",
+    ...buildDefaultCreateEventTimes(),
+    depositAmount: "20",
+    seatCount: "3",
+    settlementMode: "party",
+  };
+}
 
 export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
   const [event, setEvent] = useState(sampleEvent);
@@ -137,7 +141,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
   const [txState, setTxState] = useState<TxState>("idle");
   const [txMessage, setTxMessage] = useState("Ready for testnet transactions.");
   const [manualEventId, setManualEventId] = useState("");
-  const [createEventForm, setCreateEventForm] = useState<CreateEventFormState>(defaultCreateEventForm);
+  const [createEventForm, setCreateEventForm] = useState<CreateEventFormState>(() => createDefaultCreateEventForm());
   const [createdEvent, setCreatedEvent] = useState<CreatedEventState | null>(null);
   const [checkInDraft, setCheckInDraft] = useState<CheckInDraftState>({
     rawPayload: "",
@@ -237,7 +241,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
 
   async function handleCreateEvent() {
     const title = createEventForm.title.trim();
-    const depositAmount = Number(createEventForm.depositAmount);
+    let depositAmount: string;
     const seatCount = Number(createEventForm.seatCount);
     const startMs = new Date(createEventForm.startLocal).getTime();
     const endMs = new Date(createEventForm.endLocal).getTime();
@@ -247,9 +251,11 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
       setTxMessage("Create event: title is required.");
       return;
     }
-    if (!Number.isFinite(depositAmount) || depositAmount <= 0) {
+    try {
+      depositAmount = parseUsdcAmountToAtomicUnits(createEventForm.depositAmount);
+    } catch (error) {
       setTxState("error");
-      setTxMessage("Create event: deposit must be greater than zero.");
+      setTxMessage(error instanceof Error ? `Create event: ${error.message}` : "Create event: invalid deposit.");
       return;
     }
     if (!Number.isInteger(seatCount) || seatCount <= 0) {
@@ -303,7 +309,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
       title,
       startMs,
       endMs,
-      depositAmount: String(depositAmount),
+      depositAmount,
       seatCount,
       reservedCount: 0,
       checkedInCount: 0,
@@ -497,9 +503,6 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
     setTxState("success");
     setTxMessage(`Settle event: receipt ${formatShortAddress(settlement.objectId)} created.`);
   }
-
-  const noShowCount = deriveNoShowCount(event);
-  const vaultBalance = noShowCount * Number(event.depositAmount);
 
   return (
     <main className="app-shell">
@@ -702,7 +705,7 @@ function HostDashboard({
           {event.reservations.map((reservation) => (
             <button key={reservation.objectId} className="table-row" onClick={() => onSelectReservation(reservation.objectId)}>
               <span>{formatShortAddress(reservation.attendeeAddress)}</span>
-              <span>{reservation.depositAmount} USDC</span>
+              <span>{formatUsdcAmountFromAtomicUnits(reservation.depositAmount)} USDC</span>
               <StatusPill status={reservation.status} />
             </button>
           ))}
@@ -723,7 +726,7 @@ function HostDashboard({
           {checkInDraft.reservation ? (
             <>
               <span>{formatShortAddress(checkInDraft.reservation.attendeeAddress)}</span>
-              <strong>Refund {checkInDraft.reservation.depositAmount} USDC immediately</strong>
+              <strong>Refund {formatUsdcAmountFromAtomicUnits(checkInDraft.reservation.depositAmount)} USDC immediately</strong>
               <small>{checkInDraft.reservation.objectId}</small>
             </>
           ) : (
@@ -780,9 +783,9 @@ function HostDashboard({
             <span>No-show</span>
             <strong>{settlementResult.totalNoShow}</strong>
             <span>Forfeited</span>
-            <strong>{settlementResult.forfeitedAmount} USDC</strong>
+            <strong>{formatUsdcAmountFromAtomicUnits(settlementResult.forfeitedAmount)} USDC</strong>
             <span>Distributed</span>
-            <strong>{settlementResult.distributedAmount} USDC</strong>
+            <strong>{formatUsdcAmountFromAtomicUnits(settlementResult.distributedAmount)} USDC</strong>
           </div>
         ) : null}
       </section>
@@ -827,7 +830,7 @@ function PublicEvent({ event, onReserve }: { event: EventSnapshot; onReserve: ()
         <h2>{event.title}</h2>
         <div className="ticket-rule">
           <CircleDollarSign size={18} />
-          {event.depositAmount} USDC refundable deposit
+          {formatUsdcAmountFromAtomicUnits(event.depositAmount)} USDC refundable deposit
         </div>
         <div className="ticket-rule">
           <ShieldCheck size={18} />
@@ -874,7 +877,7 @@ function ReservationPage({ event, reservation }: { event: EventSnapshot; reserva
           <span>Attendee</span>
           <strong>{reservation.attendeeAddress}</strong>
           <span>Deposit</span>
-          <strong>{reservation.depositAmount} USDC</strong>
+          <strong>{formatUsdcAmountFromAtomicUnits(reservation.depositAmount)} USDC</strong>
           <span>Refund rule</span>
           <strong>Check-in returns deposit immediately</strong>
           <span>QR payload</span>

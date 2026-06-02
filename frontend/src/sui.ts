@@ -88,14 +88,44 @@ export type SettleEventPrecheckResult = { ok: true } | { ok: false; reason: stri
 
 export interface SettlementPreview {
   noShowCount: number;
-  vaultBalance: number;
+  vaultBalance: string;
   distributionLabel: string;
-  checkedInRefundedAmount: number;
+  checkedInRefundedAmount: string;
 }
 
 const SUI_CLOCK_OBJECT_ID = "0x6";
 
 const DEFAULT_GAS_BUDGET = 100_000_000;
+export const USDC_DECIMALS = 6;
+const USDC_SCALE = 10n ** BigInt(USDC_DECIMALS);
+const INVALID_USDC_AMOUNT_MESSAGE = "Enter a valid USDC amount with up to 6 decimal places.";
+
+export function parseUsdcAmountToAtomicUnits(displayAmount: string): string {
+  const match = /^(\d+)(?:\.(\d{1,6}))?$/.exec(displayAmount.trim());
+  if (!match) throw new Error(INVALID_USDC_AMOUNT_MESSAGE);
+
+  const whole = BigInt(match[1]);
+  const fraction = BigInt((match[2] ?? "").padEnd(USDC_DECIMALS, "0"));
+  const atomicAmount = whole * USDC_SCALE + fraction;
+  if (atomicAmount <= 0n) throw new Error(INVALID_USDC_AMOUNT_MESSAGE);
+  return atomicAmount.toString();
+}
+
+export function formatUsdcAmountFromAtomicUnits(atomicAmount: string | bigint | number): string {
+  const amount = BigInt(atomicAmount);
+  const whole = amount / USDC_SCALE;
+  const fraction = (amount % USDC_SCALE).toString().padStart(USDC_DECIMALS, "0").replace(/0+$/, "");
+  return fraction ? `${whole}.${fraction}` : whole.toString();
+}
+
+export function buildDefaultCreateEventTimes(now = new Date()): { startLocal: string; endLocal: string } {
+  const start = new Date(now);
+  start.setMinutes(0, 0, 0);
+  start.setHours(start.getHours() + 1);
+  const end = new Date(start);
+  end.setHours(end.getHours() + 3);
+  return { startLocal: formatDateTimeLocal(start), endLocal: formatDateTimeLocal(end) };
+}
 
 export function settlementModeLabel(mode: SettlementMode): string {
   return mode === "party" ? "Party Mode" : "Strict Mode";
@@ -132,7 +162,7 @@ export function buildCreateEventTransaction(
     title: string;
     startMs: bigint | number;
     endMs: bigint | number;
-    depositAmount: bigint | number;
+    depositAmount: bigint | number | string;
     seatCount: bigint | number;
     settlementMode: SettlementMode;
   },
@@ -401,13 +431,12 @@ export function deriveNoShowCount(event: EventSnapshot): number {
 
 export function deriveSettlementPreview(event: EventSnapshot): SettlementPreview {
   const noShowCount = deriveNoShowCount(event);
-  const depositAmount = Number(event.depositAmount);
-  const vaultBalance = noShowCount * depositAmount;
+  const depositAmount = BigInt(event.depositAmount);
   return {
     noShowCount,
-    vaultBalance,
+    vaultBalance: formatUsdcAmountFromAtomicUnits(BigInt(noShowCount) * depositAmount),
     distributionLabel: event.settlementMode === "party" ? "Checked-in attendees" : "Host",
-    checkedInRefundedAmount: event.checkedInCount * depositAmount,
+    checkedInRefundedAmount: formatUsdcAmountFromAtomicUnits(BigInt(event.checkedInCount) * depositAmount),
   };
 }
 
@@ -430,6 +459,11 @@ function stringField(value: unknown): string {
 
 function numberValue(value: unknown): number {
   return typeof value === "number" ? value : Number(value ?? 0);
+}
+
+function formatDateTimeLocal(value: Date): string {
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
 }
 
 function transactionResultLike(value: unknown): TransactionResultLike | null {
