@@ -141,6 +141,9 @@ Start the frontend:
 npm run dev
 ```
 
+The Move wrapper requires `sui` on `PATH`. Its version must match
+`contracts/Move.toml`; the wrapper stops instead of falling back to a bundled CLI.
+
 Compile the Move package:
 
 ```powershell
