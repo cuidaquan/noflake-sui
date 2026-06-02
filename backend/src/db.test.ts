@@ -83,4 +83,19 @@ describe("database cache", () => {
 
     expect(columns.map((column) => column.name)).toEqual(expect.arrayContaining(["start_ms", "end_ms"]));
   });
+
+  it("persists event cursors across database restarts", () => {
+    const directory = mkdtempSync(join(tmpdir(), "noflake-cache-"));
+    const path = join(directory, "cache.sqlite");
+
+    const db = createDatabase(path);
+    db.setEventCursor("EventCreated", { txDigest: "digest-1", eventSeq: "7" });
+    expect(db.getEventCursor("EventCreated")).toEqual({ txDigest: "digest-1", eventSeq: "7" });
+    db.close();
+
+    const reopenedDb = createDatabase(path);
+    expect(reopenedDb.getEventCursor("EventCreated")).toEqual({ txDigest: "digest-1", eventSeq: "7" });
+    reopenedDb.close();
+    rmSync(directory, { recursive: true, force: true });
+  });
 });

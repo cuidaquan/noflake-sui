@@ -6,12 +6,18 @@ export interface SuiEvent {
   parsedJson?: unknown;
 }
 
+export interface EventCursor {
+  txDigest: string;
+  eventSeq: string;
+}
+
 export interface SuiEventClient {
   queryEvents(input: {
     query: { MoveEventType: string };
+    cursor?: EventCursor | null;
     limit: number;
     order: "ascending" | "descending";
-  }): Promise<{ data: SuiEvent[] }>;
+  }): Promise<{ data: SuiEvent[]; nextCursor: EventCursor | null; hasNextPage: boolean }>;
 }
 
 export function createSuiClient(config: Pick<BackendConfig, "suiNetwork">): SuiEventClient {
@@ -26,7 +32,7 @@ export function createSuiClient(config: Pick<BackendConfig, "suiNetwork">): SuiE
           jsonrpc: "2.0",
           id: 1,
           method: "suix_queryEvents",
-          params: [input.query, null, input.limit, input.order === "descending"],
+          params: [input.query, input.cursor ?? null, input.limit, input.order === "descending"],
         }),
       });
 
@@ -36,14 +42,18 @@ export function createSuiClient(config: Pick<BackendConfig, "suiNetwork">): SuiE
 
       const payload = (await response.json()) as {
         error?: { message?: string };
-        result?: { data?: SuiEvent[] };
+        result?: { data?: SuiEvent[]; nextCursor?: EventCursor | null; hasNextPage?: boolean };
       };
 
       if (payload.error) {
         throw new Error(payload.error.message ?? "Sui RPC request failed");
       }
 
-      return { data: payload.result?.data ?? [] };
+      return {
+        data: payload.result?.data ?? [],
+        nextCursor: payload.result?.nextCursor ?? null,
+        hasNextPage: payload.result?.hasNextPage ?? false,
+      };
     },
   };
 }

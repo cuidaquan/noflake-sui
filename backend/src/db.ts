@@ -32,12 +32,27 @@ export function createDatabase(path: string): NoFlakeDatabase {
         .get(eventObjectId) as SettlementRow | undefined;
       return row ? mapSettlement(row) : undefined;
     },
+    getEventCursor: (eventType) => {
+      const row = db
+        .prepare("select tx_digest, event_seq from event_cursors where event_type = ?")
+        .get(eventType) as EventCursorRow | undefined;
+      return row ? { txDigest: row.tx_digest, eventSeq: row.event_seq } : undefined;
+    },
     hasProcessedEvent: (eventKey) => {
       const row = db.prepare("select event_key from processed_events where event_key = ?").get(eventKey) as { event_key: string } | undefined;
       return Boolean(row);
     },
     markProcessedEvent: (eventKey) => {
       db.prepare("insert or ignore into processed_events (event_key) values (?)").run(eventKey);
+    },
+    setEventCursor: (eventType, cursor) => {
+      db.prepare(
+        `insert into event_cursors (event_type, tx_digest, event_seq)
+         values (?, ?, ?)
+         on conflict(event_type) do update set
+           tx_digest = excluded.tx_digest,
+           event_seq = excluded.event_seq`,
+      ).run(eventType, cursor.txDigest, cursor.eventSeq);
     },
     upsertEvent: (event) => {
       db.prepare(
@@ -141,6 +156,12 @@ function migrate(db: SqliteDatabase): void {
     create table if not exists processed_events (
       event_key text primary key
     );
+
+    create table if not exists event_cursors (
+      event_type text primary key,
+      tx_digest text not null,
+      event_seq text not null
+    );
   `);
 
   addColumnIfMissing(db, "events", "start_ms", "integer not null default 0");
@@ -177,6 +198,11 @@ interface ReservationRow {
   deposit_amount: string;
   status: CachedReservation["status"];
   updated_digest: string;
+}
+
+interface EventCursorRow {
+  tx_digest: string;
+  event_seq: string;
 }
 
 interface SettlementRow {

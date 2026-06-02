@@ -1,3 +1,5 @@
+import type { EventCursor } from "./sui-client";
+
 export type SettlementMode = "strict" | "party";
 export type EventStatus = "open" | "full" | "settled" | "cancelled";
 export type ReservationStatus = "reserved" | "cancelled" | "checked_in_refunded" | "no_show" | "forfeited";
@@ -44,7 +46,9 @@ export interface NoFlakeDatabase {
   getReservationsForEvent(eventObjectId: string): CachedReservation[];
   getReservation(objectId: string): CachedReservation | undefined;
   getSettlementForEvent(eventObjectId: string): CachedSettlement | undefined;
+  getEventCursor(eventType: string): EventCursor | undefined;
   hasProcessedEvent(eventKey: string): boolean;
+  setEventCursor(eventType: string, cursor: EventCursor): void;
   markProcessedEvent(eventKey: string): void;
   upsertEvent(event: CachedEvent): void;
   upsertReservation(reservation: CachedReservation): void;

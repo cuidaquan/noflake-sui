@@ -1,6 +1,9 @@
 import type { NoFlakeDatabase } from "../types";
 import type { SuiEvent, SuiEventClient } from "../sui-client";
 
+const EVENT_PAGE_SIZE = 50;
+const MAX_PAGES_PER_POLL = 20;
+
 export interface EventPollerOptions {
   client: SuiEventClient;
   db: NoFlakeDatabase;
@@ -71,25 +74,40 @@ export async function pollNoFlakeEvents({ client, db, packageId }: EventPollerOp
   ];
 
   let processed = 0;
+  let pagesProcessed = 0;
   for (const eventName of eventTypes) {
-    const result = await client.queryEvents({
-      query: { MoveEventType: `${packageId}::noflake::${eventName}` },
-      limit: 50,
-      order: "ascending",
-    });
+    let cursor = db.getEventCursor(eventName) ?? null;
+    while (pagesProcessed < MAX_PAGES_PER_POLL) {
+      const result = await client.queryEvents({
+        query: { MoveEventType: `${packageId}::noflake::${eventName}` },
+        cursor,
+        limit: EVENT_PAGE_SIZE,
+        order: "ascending",
+      });
+      pagesProcessed += 1;
 
-    for (const event of result.data) {
-      const eventKey = `${event.id.txDigest}:${event.id.eventSeq}`;
-      if (db.hasProcessedEvent(eventKey)) {
-        continue;
+      for (const event of result.data) {
+        const eventKey = `${event.id.txDigest}:${event.id.eventSeq}`;
+        if (db.hasProcessedEvent(eventKey)) {
+          continue;
+        }
+
+        const applied = applyEvent(db, event);
+        if (applied > 0) {
+          db.markProcessedEvent(eventKey);
+          processed += applied;
+        }
       }
 
-      const applied = applyEvent(db, event);
-      if (applied > 0) {
-        db.markProcessedEvent(eventKey);
-        processed += applied;
+      if (result.nextCursor) {
+        db.setEventCursor(eventName, result.nextCursor);
+        cursor = result.nextCursor;
       }
+
+      if (!result.hasNextPage || !result.nextCursor) break;
     }
+
+    if (pagesProcessed >= MAX_PAGES_PER_POLL) break;
   }
 
   return processed;
