@@ -6,6 +6,6 @@ edition = "2024.beta"
 noflake = "0x0"
 
 [move.toolchain-version]
-compiler-version = "1.72.2"
+compiler-version = "1.73.0"
 edition = "2024.beta"
 flavor = "sui"

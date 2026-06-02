@@ -61,7 +61,7 @@ noflake-sui/
 
 ## Tech Stack
 
-- Sui CLI 1.72.2
+- Sui CLI 1.73.0
 - Sui Move 2024 edition
 - Node.js 22.x
 - npm workspaces
@@ -85,13 +85,13 @@ Sui testnet
 Package ID:
 
 ```text
-0x27e93520a24d483475c32e477ee723c815f4abd5403072597b1bbeb9748eef7c
+0x77ccba28fb3c267ec971b84cf46e83f0423b73ea1a746dfbc305815980e6613c
 ```
 
 Publish transaction digest:
 
 ```text
-4r1nE8ckvtZ9bfaeFHT2haCGEgBbbzTHpQvw8fUJXsQ4
+DmstNc6qmKJBK2gZUQzsg8uzuDVk7PGFRbPv79cXhKdm
 ```
 
 Circle testnet USDC coin type:
@@ -108,7 +108,7 @@ Backend variables are documented in `backend/.env.example`:
 HOST=127.0.0.1
 PORT=8787
 SUI_NETWORK=testnet
-NOFLAKE_PACKAGE_ID=0x27e93520a24d483475c32e477ee723c815f4abd5403072597b1bbeb9748eef7c
+NOFLAKE_PACKAGE_ID=0x77ccba28fb3c267ec971b84cf46e83f0423b73ea1a746dfbc305815980e6613c
 NOFLAKE_DB_PATH=noflake-cache.sqlite
 NOFLAKE_POLL_INTERVAL_MS=5000
 ```
@@ -116,7 +116,7 @@ NOFLAKE_POLL_INTERVAL_MS=5000
 Frontend variables:
 
 ```bash
-VITE_NOFLAKE_PACKAGE_ID=0x27e93520a24d483475c32e477ee723c815f4abd5403072597b1bbeb9748eef7c
+VITE_NOFLAKE_PACKAGE_ID=0x77ccba28fb3c267ec971b84cf46e83f0423b73ea1a746dfbc305815980e6613c
 VITE_NOFLAKE_COIN_TYPE=0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC
 VITE_NOFLAKE_API_URL=http://127.0.0.1:8787
 ```
@@ -227,4 +227,3 @@ NoFlake uses Sui objects to model real payment commitments:
 - `Reservation` represents the attendee's RSVP commitment.
 - `SettlementReceipt` records final settlement.
 - PTBs combine payment, state change, and object transfer into wallet-confirmable flows.
-
