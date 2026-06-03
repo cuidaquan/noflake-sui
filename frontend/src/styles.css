@@ -252,6 +252,11 @@ h1 {
   grid-column: span 1;
 }
 
+.empty-state-panel {
+  color: #52624c;
+  font-weight: 800;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -20,6 +20,7 @@ import type { SuiJsonRpcClient } from "@mysten/sui/jsonRpc";
 import { QRCodeSVG } from "qrcode.react";
 import type { EventSnapshot, ReservationSnapshot } from "./api/client";
 import { fetchEventSnapshot } from "./api/client";
+import { createInitialEventState } from "./event-state";
 import {
   buildCheckInPayload,
   buildCheckInTransaction,
@@ -73,51 +74,6 @@ interface CheckInDraftState {
   error: string;
 }
 
-const sampleReservations: ReservationSnapshot[] = [
-  {
-    objectId: "0xres_a71c",
-    eventObjectId: "0xevent_9f3a",
-    attendeeAddress: "0x8f7d...4a12",
-    depositAmount: "20000000",
-    status: "checked_in_refunded",
-    updatedDigest: "9Tn...a2",
-  },
-  {
-    objectId: "0xres_c25e",
-    eventObjectId: "0xevent_9f3a",
-    attendeeAddress: "0x2a91...b771",
-    depositAmount: "20000000",
-    status: "reserved",
-    updatedDigest: "7Rc...91",
-  },
-  {
-    objectId: "0xres_e940",
-    eventObjectId: "0xevent_9f3a",
-    attendeeAddress: "0x55b2...90ec",
-    depositAmount: "20000000",
-    status: "reserved",
-    updatedDigest: "4Lm...d8",
-  },
-];
-
-const sampleEvent: EventSnapshot = {
-  objectId: "0xevent_9f3a",
-  vaultObjectId: "0xvault_9f3a",
-  hostAddress: "0xhost...dinner",
-  title: "Sui Builder Dinner",
-  startMs: new Date("2026-06-01T19:00").getTime(),
-  endMs: new Date("2026-06-01T22:00").getTime(),
-  depositAmount: "20000000",
-  seatCount: 3,
-  reservedCount: 3,
-  checkedInCount: 1,
-  settlementMode: "party",
-  status: "open",
-  updatedDigest: "F8x...21",
-  reservations: sampleReservations,
-  settlement: null,
-};
-
 const packageId = import.meta.env.VITE_NOFLAKE_PACKAGE_ID ?? "";
 const coinType =
   import.meta.env.VITE_NOFLAKE_COIN_TYPE ??
@@ -134,12 +90,12 @@ function createDefaultCreateEventForm(): CreateEventFormState {
 }
 
 export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
-  const [event, setEvent] = useState(sampleEvent);
+  const [event, setEvent] = useState<EventSnapshot | null>(() => createInitialEventState());
   const [viewMode, setViewMode] = useState<ViewMode>("host");
-  const [selectedReservationId, setSelectedReservationId] = useState(sampleReservations[1].objectId);
+  const [selectedReservationId, setSelectedReservationId] = useState("");
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">("idle");
   const [txState, setTxState] = useState<TxState>("idle");
-  const [txMessage, setTxMessage] = useState("Ready for testnet transactions.");
+  const [txMessage, setTxMessage] = useState("Create a testnet event or load an existing event id.");
   const [manualEventId, setManualEventId] = useState("");
   const [createEventForm, setCreateEventForm] = useState<CreateEventFormState>(() => createDefaultCreateEventForm());
   const [createdEvent, setCreatedEvent] = useState<CreatedEventState | null>(null);
@@ -149,7 +105,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
     reservation: null,
     error: "Paste a NoFlake check-in QR payload to begin.",
   });
-  const [settlementResult, setSettlementResult] = useState<EventSnapshot["settlement"]>(sampleEvent.settlement);
+  const [settlementResult, setSettlementResult] = useState<EventSnapshot["settlement"]>(null);
 
   const account = useCurrentAccount({ dAppKit });
   const currentNetwork = useCurrentNetwork({ dAppKit });
@@ -164,8 +120,9 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
   }, []);
 
   const selectedReservation =
-    event.reservations.find((reservation) => reservation.objectId === selectedReservationId) ??
-    event.reservations[0];
+    event?.reservations.find((reservation) => reservation.objectId === selectedReservationId) ??
+    event?.reservations[0] ??
+    null;
 
   const txConfig = useMemo(
     () => ({
@@ -302,10 +259,9 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
 
     setCreatedEvent({ ...refs, digest });
     setEvent({
-      ...sampleEvent,
       objectId: refs.eventObjectId,
       vaultObjectId: refs.vaultObjectId,
-      hostAddress: account?.address ?? sampleEvent.hostAddress,
+      hostAddress: account?.address ?? "",
       title,
       startMs,
       endMs,
@@ -324,6 +280,12 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
   }
 
   async function handleReserve() {
+    if (!event) {
+      setTxMessage("Reserve: create or load an event first.");
+      setTxState("error");
+      return;
+    }
+
     if (!account) {
       setTxMessage("Connect a wallet first.");
       setTxState("error");
@@ -387,13 +349,13 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
       status: "reserved",
       updatedDigest: result.digest,
     };
-    setEvent((current) => ({
+    setEvent((current) => current ? ({
       ...current,
       reservedCount: Math.min(current.seatCount, current.reservedCount + 1),
       status: current.reservedCount + 1 >= current.seatCount ? "full" : current.status,
       reservations: [reservation, ...current.reservations.filter((item) => item.objectId !== reservation.objectId)],
       updatedDigest: result.digest,
-    }));
+    }) : current);
     setSelectedReservationId(reservation.objectId);
     setViewMode("reservation");
     setTxState("success");
@@ -401,6 +363,16 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
   }
 
   function handleCheckInPayloadChange(rawPayload: string) {
+    if (!event) {
+      setCheckInDraft({
+        rawPayload,
+        parsed: null,
+        reservation: null,
+        error: "Create or load an event before scanning check-in payloads.",
+      });
+      return;
+    }
+
     if (!rawPayload.trim()) {
       setCheckInDraft({
         rawPayload,
@@ -432,6 +404,12 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
   }
 
   async function handleCheckIn(reservation: ReservationSnapshot) {
+    if (!event) {
+      setTxMessage("Check in: create or load an event first.");
+      setTxState("error");
+      return;
+    }
+
     const result = await execute(
       buildCheckInTransaction(txConfig, {
         eventObjectId: event.objectId,
@@ -442,7 +420,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
     );
     if (!result) return;
 
-    setEvent((current) => ({
+    setEvent((current) => current ? ({
       ...current,
       checkedInCount: current.reservations.some((item) => item.objectId === reservation.objectId && item.status === "reserved")
         ? current.checkedInCount + 1
@@ -453,7 +431,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
           : item,
       ),
       updatedDigest: result.digest,
-    }));
+    }) : current);
     setCheckInDraft((current) => ({
       ...current,
       reservation: { ...reservation, status: "checked_in_refunded", updatedDigest: result.digest },
@@ -462,6 +440,12 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
   }
 
   async function handleSettle() {
+    if (!event) {
+      setTxState("error");
+      setTxMessage("Settle event: create or load an event first.");
+      return;
+    }
+
     const precheck = canSettleEvent(event);
     if (!precheck.ok) {
       setTxState("error");
@@ -494,12 +478,12 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
     }
 
     setSettlementResult(settlement);
-    setEvent((current) => ({
+    setEvent((current) => current ? ({
       ...current,
       status: "settled",
       settlement,
       updatedDigest: result.digest,
-    }));
+    }) : current);
     setTxState("success");
     setTxMessage(`Settle event: receipt ${formatShortAddress(settlement.objectId)} created.`);
   }
@@ -536,7 +520,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
           </div>
         </header>
 
-        {loadState === "error" ? <div className="notice">Backend cache unavailable. Showing demo state.</div> : null}
+        {loadState === "error" ? <div className="notice notice-error">Backend cache unavailable or event was not found.</div> : null}
         {txState !== "idle" ? <div className={`notice notice-${txState}`}>{txMessage}</div> : null}
 
         <StatusStrip account={account?.address ?? null} walletName={currentWallet?.name ?? null} event={event} />
@@ -544,7 +528,8 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
           eventId={manualEventId}
           onEventIdChange={setManualEventId}
           onLoad={() => void loadEventSnapshot()}
-          onRefresh={() => void loadEventSnapshot(event.objectId)}
+          onRefresh={() => event ? void loadEventSnapshot(event.objectId) : undefined}
+          canRefresh={Boolean(event)}
         />
 
         {viewMode === "host" ? (
@@ -564,12 +549,9 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
             onCopy={copyText}
           />
         ) : viewMode === "event" ? (
-          <PublicEvent
-            event={event}
-            onReserve={handleReserve}
-          />
+          event ? <PublicEvent event={event} onReserve={handleReserve} /> : <NoEventLoaded view="event" />
         ) : (
-          <ReservationPage event={event} reservation={selectedReservation} />
+          event && selectedReservation ? <ReservationPage event={event} reservation={selectedReservation} /> : <NoEventLoaded view="reservation" />
         )}
       </section>
     </main>
@@ -583,7 +565,7 @@ function StatusStrip({
 }: {
   account: string | null;
   walletName: string | null;
-  event: EventSnapshot;
+  event: EventSnapshot | null;
 }) {
   return (
     <section className="status-strip">
@@ -594,15 +576,13 @@ function StatusStrip({
       </div>
       <div>
         <span>Event</span>
-        <strong>{eventStatusLabel(event.status)}</strong>
-        <p>{settlementModeLabel(event.settlementMode)}</p>
+        <strong>{event ? eventStatusLabel(event.status) : "No event loaded"}</strong>
+        <p>{event ? settlementModeLabel(event.settlementMode) : "Create or load a real event"}</p>
       </div>
       <div>
         <span>Seats</span>
-        <strong>
-          {event.reservedCount}/{event.seatCount}
-        </strong>
-        <p>{deriveNoShowCount(event)} no-shows remain in vault</p>
+        <strong>{event ? `${event.reservedCount}/${event.seatCount}` : "0/0"}</strong>
+        <p>{event ? `${deriveNoShowCount(event)} no-shows remain in vault` : "No vault yet"}</p>
       </div>
     </section>
   );
@@ -623,7 +603,7 @@ function HostDashboard({
   settlementResult,
   onCopy,
 }: {
-  event: EventSnapshot;
+  event: EventSnapshot | null;
   txConfig: { packageId: string; coinType: string };
   createEventForm: CreateEventFormState;
   createdEvent: CreatedEventState | null;
@@ -637,9 +617,6 @@ function HostDashboard({
   settlementResult: EventSnapshot["settlement"];
   onCopy: (value: string, label: string) => void;
 }) {
-  const settlementPreview = deriveSettlementPreview(event);
-  const noShowCount = settlementPreview.noShowCount;
-  const vaultBalance = settlementPreview.vaultBalance;
   const updateForm = (patch: Partial<CreateEventFormState>) => onCreateEventFormChange({ ...createEventForm, ...patch });
 
   return (
@@ -692,9 +669,11 @@ function HostDashboard({
         ) : null}
       </section>
 
+      {!event ? <NoEventLoaded view="host" /> : (
+        <>
       <section className="metrics-strip">
         <Metric icon={<BadgeCheck size={18} />} label="Checked in" value={event.checkedInCount} />
-        <Metric icon={<CircleDollarSign size={18} />} label="Vault" value={`${vaultBalance} USDC`} />
+        <Metric icon={<CircleDollarSign size={18} />} label="Vault" value={`${deriveSettlementPreview(event).vaultBalance} USDC`} />
         <Metric icon={<ShieldCheck size={18} />} label="Mode" value={settlementModeLabel(event.settlementMode)} />
         <Metric icon={<Copy size={18} />} label="Package" value={txConfig.packageId ? formatShortAddress(txConfig.packageId) : "unset"} />
       </section>
@@ -755,20 +734,20 @@ function HostDashboard({
           </div>
           <div>
             <span>No-show</span>
-            <strong>{noShowCount}</strong>
+            <strong>{deriveSettlementPreview(event).noShowCount}</strong>
           </div>
         </div>
         <div className="settlement-line">
           <span>No-show deposits</span>
-          <strong>{vaultBalance} USDC</strong>
+          <strong>{deriveSettlementPreview(event).vaultBalance} USDC</strong>
         </div>
         <div className="settlement-line">
           <span>Already refunded</span>
-          <strong>{settlementPreview.checkedInRefundedAmount} USDC</strong>
+          <strong>{deriveSettlementPreview(event).checkedInRefundedAmount} USDC</strong>
         </div>
         <div className="settlement-line">
           <span>Distribution</span>
-          <strong>{settlementPreview.distributionLabel}</strong>
+          <strong>{deriveSettlementPreview(event).distributionLabel}</strong>
         </div>
         <button className="secondary-action" onClick={onSettle} disabled={event.status === "settled"}>
           <RefreshCw size={18} />
@@ -789,6 +768,8 @@ function HostDashboard({
           </div>
         ) : null}
       </section>
+        </>
+      )}
     </div>
   );
 }
@@ -798,11 +779,13 @@ function DemoControlBar({
   onEventIdChange,
   onLoad,
   onRefresh,
+  canRefresh,
 }: {
   eventId: string;
   onEventIdChange: (eventId: string) => void;
   onLoad: () => void;
   onRefresh: () => void;
+  canRefresh: boolean;
 }) {
   return (
     <section className="demo-control-bar">
@@ -814,10 +797,26 @@ function DemoControlBar({
         <LinkIcon size={16} />
         Load
       </button>
-      <button className="secondary-action compact-action" onClick={onRefresh}>
+      <button className="secondary-action compact-action" onClick={onRefresh} disabled={!canRefresh}>
         <RefreshCw size={16} />
         Refresh current
       </button>
+    </section>
+  );
+}
+
+function NoEventLoaded({ view }: { view: ViewMode }) {
+  const message =
+    view === "host"
+      ? "Create a new testnet event or load an existing event id. No placeholder reservations are shown."
+      : view === "event"
+        ? "Create or load an event before sharing the public reservation page."
+        : "Select a real reservation after an attendee reserves a seat.";
+
+  return (
+    <section className="control-panel empty-state-panel">
+      <PanelTitle icon={<ClipboardCheck size={18} />} title="No event loaded" />
+      <p>{message}</p>
     </section>
   );
 }
