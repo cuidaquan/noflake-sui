@@ -355,7 +355,7 @@ export function buildReserveTransaction(
       ? tx.object(input.depositCoinObjectId)
       : tx.splitCoins(tx.object(input.depositCoinObjectId), [input.depositAmount])[0];
 
-  const reservation = tx.moveCall({
+  tx.moveCall({
     package: config.packageId,
     module: "noflake",
     function: "reserve",
@@ -366,7 +366,6 @@ export function buildReserveTransaction(
       depositCoin,
     ],
   });
-  tx.transferObjects([reservation], input.attendeeAddress);
   return tx;
 }
 

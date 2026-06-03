@@ -234,7 +234,7 @@ public fun reserve<T>(
     vault: &mut EventVault<T>,
     deposit: Coin<T>,
     ctx: &mut TxContext,
-): Reservation {
+) {
     assert!(event.status == STATUS_OPEN, E_EVENT_CLOSED);
     assert!(event.reserved_count < event.seat_count, E_EVENT_FULL);
     assert!(vault.event_id == object::id(event), E_EVENT_CLOSED);
@@ -267,7 +267,7 @@ public fun reserve<T>(
         deposit_amount: event.deposit_amount,
     });
 
-    reservation
+    transfer::share_object(reservation);
 }
 
 public fun check_in<T>(

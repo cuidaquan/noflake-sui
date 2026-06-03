@@ -401,7 +401,7 @@ describe("NoFlake transaction builders", () => {
     ).toEqual({ ok: false, reason: "Reservation is checked in refunded, not reserved." });
   });
 
-  it("passes an exact deposit coin to reserve and transfers the returned reservation", () => {
+  it("passes an exact deposit coin to reserve and relies on the contract to share the reservation", () => {
     const attendeeAddress = "0x0000000000000000000000000000000000000000000000000000000000000abc";
     const tx = buildReserveTransaction(config, {
       eventObjectId,
@@ -412,7 +412,7 @@ describe("NoFlake transaction builders", () => {
       attendeeAddress,
     });
 
-    expect(tx.getData().commands).toHaveLength(2);
+    expect(tx.getData().commands).toHaveLength(1);
     expect(tx.getData().commands[0]).toMatchObject({
       MoveCall: {
         package: config.packageId,
@@ -421,14 +421,9 @@ describe("NoFlake transaction builders", () => {
       },
     });
     expect(tx.getData().commands[0].MoveCall?.arguments[2]).toMatchObject({ Input: 0, type: "object" });
-    expect(tx.getData().commands[1]).toMatchObject({
-      TransferObjects: {
-        objects: [{ Result: 0 }],
-      },
-    });
   });
 
-  it("splits an oversized deposit coin before reserve and transfers the returned reservation", () => {
+  it("splits an oversized deposit coin before reserve and relies on the contract to share the reservation", () => {
     const attendeeAddress = "0x0000000000000000000000000000000000000000000000000000000000000abc";
     const tx = buildReserveTransaction(config, {
       eventObjectId,
@@ -439,7 +434,7 @@ describe("NoFlake transaction builders", () => {
       attendeeAddress,
     });
 
-    expect(tx.getData().commands).toHaveLength(3);
+    expect(tx.getData().commands).toHaveLength(2);
     expect(tx.getData().commands[0]).toMatchObject({
       SplitCoins: {
         coin: { Input: 0, type: "object" },
@@ -456,11 +451,6 @@ describe("NoFlake transaction builders", () => {
           { Input: 3, type: "object" },
           { NestedResult: [0, 0] },
         ],
-      },
-    });
-    expect(tx.getData().commands[2]).toMatchObject({
-      TransferObjects: {
-        objects: [{ Result: 1 }],
       },
     });
   });

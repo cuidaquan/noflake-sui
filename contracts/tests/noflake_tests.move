@@ -4,8 +4,8 @@ module noflake::noflake_tests;
 use std::string;
 use sui::clock::{Self, Clock};
 use sui::coin;
+use sui::object;
 use sui::test_scenario;
-use sui::transfer;
 use noflake::noflake;
 
 public struct TEST_USDC has drop {}
@@ -31,8 +31,7 @@ fun host_can_create_event_and_attendee_can_reserve() {
     let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
     let deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
 
-    let reservation = noflake::reserve(&mut event, &mut vault, deposit, scenario.ctx());
-    transfer::public_transfer(reservation, attendee);
+    noflake::reserve(&mut event, &mut vault, deposit, scenario.ctx());
 
     assert!(noflake::reserved_count(&event) == 1);
     assert!(noflake::vault_balance(&vault) == 20);
@@ -63,8 +62,7 @@ fun host_check_in_refunds_attendee_immediately() {
     let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
     let deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
 
-    let reservation = noflake::reserve(&mut event, &mut vault, deposit, scenario.ctx());
-    transfer::public_transfer(reservation, attendee);
+    noflake::reserve(&mut event, &mut vault, deposit, scenario.ctx());
 
     test_scenario::return_shared(event);
     test_scenario::return_shared(vault);
@@ -72,7 +70,7 @@ fun host_check_in_refunds_attendee_immediately() {
     scenario.next_tx(host);
     let mut event = scenario.take_shared<noflake::Event>();
     let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
-    let mut reservation = scenario.take_from_address<noflake::Reservation>(attendee);
+    let mut reservation = scenario.take_shared<noflake::Reservation>();
 
     noflake::check_in(&mut event, &mut vault, &mut reservation, scenario.ctx());
 
@@ -82,7 +80,7 @@ fun host_check_in_refunds_attendee_immediately() {
 
     test_scenario::return_shared(event);
     test_scenario::return_shared(vault);
-    test_scenario::return_to_address(attendee, reservation);
+    test_scenario::return_shared(reservation);
 
     scenario.next_tx(attendee);
     let refund = scenario.take_from_sender<coin::Coin<TEST_USDC>>();
@@ -114,8 +112,7 @@ fun strict_settlement_transfers_no_show_deposit_to_host() {
     let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
     let deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
 
-    let reservation = noflake::reserve(&mut event, &mut vault, deposit, scenario.ctx());
-    transfer::public_transfer(reservation, attendee);
+    noflake::reserve(&mut event, &mut vault, deposit, scenario.ctx());
 
     test_scenario::return_shared(event);
     test_scenario::return_shared(vault);
@@ -169,28 +166,31 @@ fun party_settlement_distributes_no_show_deposit_to_checked_in_attendee() {
     let mut event = scenario.take_shared<noflake::Event>();
     let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
     let deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
-    let reservation = noflake::reserve(&mut event, &mut vault, deposit, scenario.ctx());
-    transfer::public_transfer(reservation, attendee_one);
+    noflake::reserve(&mut event, &mut vault, deposit, scenario.ctx());
     test_scenario::return_shared(event);
     test_scenario::return_shared(vault);
+
+    scenario.next_tx(attendee_one);
+    let reservation_one = scenario.take_shared<noflake::Reservation>();
+    let reservation_one_id = object::id(&reservation_one);
+    test_scenario::return_shared(reservation_one);
 
     scenario.next_tx(attendee_two);
     let mut event = scenario.take_shared<noflake::Event>();
     let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
     let deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
-    let reservation = noflake::reserve(&mut event, &mut vault, deposit, scenario.ctx());
-    transfer::public_transfer(reservation, attendee_two);
+    noflake::reserve(&mut event, &mut vault, deposit, scenario.ctx());
     test_scenario::return_shared(event);
     test_scenario::return_shared(vault);
 
     scenario.next_tx(host);
     let mut event = scenario.take_shared<noflake::Event>();
     let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
-    let mut reservation = scenario.take_from_address<noflake::Reservation>(attendee_one);
+    let mut reservation = scenario.take_shared_by_id<noflake::Reservation>(reservation_one_id);
     noflake::check_in(&mut event, &mut vault, &mut reservation, scenario.ctx());
     test_scenario::return_shared(event);
     test_scenario::return_shared(vault);
-    test_scenario::return_to_address(attendee_one, reservation);
+    test_scenario::return_shared(reservation);
 
     scenario.next_tx(attendee_one);
     let refund = scenario.take_from_sender<coin::Coin<TEST_USDC>>();
@@ -241,7 +241,14 @@ fun attendee_can_cancel_reservation_and_get_refund() {
     let mut event = scenario.take_shared<noflake::Event>();
     let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
     let deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
-    let mut reservation = noflake::reserve(&mut event, &mut vault, deposit, scenario.ctx());
+    noflake::reserve(&mut event, &mut vault, deposit, scenario.ctx());
+    test_scenario::return_shared(event);
+    test_scenario::return_shared(vault);
+
+    scenario.next_tx(attendee);
+    let mut event = scenario.take_shared<noflake::Event>();
+    let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
+    let mut reservation = scenario.take_shared<noflake::Reservation>();
 
     noflake::cancel_reservation(&mut event, &mut vault, &mut reservation, scenario.ctx());
 
@@ -251,7 +258,7 @@ fun attendee_can_cancel_reservation_and_get_refund() {
 
     test_scenario::return_shared(event);
     test_scenario::return_shared(vault);
-    transfer::public_transfer(reservation, attendee);
+    test_scenario::return_shared(reservation);
 
     scenario.next_tx(attendee);
     let refund = scenario.take_from_sender<coin::Coin<TEST_USDC>>();
@@ -281,12 +288,10 @@ fun event_rejects_reservation_after_capacity_is_full() {
     let mut event = scenario.take_shared<noflake::Event>();
     let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
     let first_deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
-    let first_reservation = noflake::reserve(&mut event, &mut vault, first_deposit, scenario.ctx());
-    transfer::public_transfer(first_reservation, attendee);
+    noflake::reserve(&mut event, &mut vault, first_deposit, scenario.ctx());
 
     let second_deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
-    let second_reservation = noflake::reserve(&mut event, &mut vault, second_deposit, scenario.ctx());
-    transfer::public_transfer(second_reservation, attendee);
+    noflake::reserve(&mut event, &mut vault, second_deposit, scenario.ctx());
 
     test_scenario::return_shared(event);
     test_scenario::return_shared(vault);
@@ -314,12 +319,10 @@ fun event_rejects_duplicate_active_reservation() {
     let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
 
     let first_deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
-    let first_reservation = noflake::reserve(&mut event, &mut vault, first_deposit, scenario.ctx());
-    transfer::public_transfer(first_reservation, attendee);
+    noflake::reserve(&mut event, &mut vault, first_deposit, scenario.ctx());
 
     let second_deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
-    let second_reservation = noflake::reserve(&mut event, &mut vault, second_deposit, scenario.ctx());
-    transfer::public_transfer(second_reservation, attendee);
+    noflake::reserve(&mut event, &mut vault, second_deposit, scenario.ctx());
 
     test_scenario::return_shared(event);
     test_scenario::return_shared(vault);
@@ -347,19 +350,25 @@ fun attendee_can_reserve_again_after_cancelling() {
     let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
 
     let first_deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
-    let mut cancelled_reservation = noflake::reserve(&mut event, &mut vault, first_deposit, scenario.ctx());
+    noflake::reserve(&mut event, &mut vault, first_deposit, scenario.ctx());
+    test_scenario::return_shared(event);
+    test_scenario::return_shared(vault);
+
+    scenario.next_tx(attendee);
+    let mut event = scenario.take_shared<noflake::Event>();
+    let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
+    let mut cancelled_reservation = scenario.take_shared<noflake::Reservation>();
     noflake::cancel_reservation(&mut event, &mut vault, &mut cancelled_reservation, scenario.ctx());
 
     let second_deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
-    let second_reservation = noflake::reserve(&mut event, &mut vault, second_deposit, scenario.ctx());
+    noflake::reserve(&mut event, &mut vault, second_deposit, scenario.ctx());
 
     assert!(noflake::reserved_count(&event) == 1);
     assert!(noflake::vault_balance(&vault) == 20);
 
     test_scenario::return_shared(event);
     test_scenario::return_shared(vault);
-    transfer::public_transfer(cancelled_reservation, attendee);
-    transfer::public_transfer(second_reservation, attendee);
+    test_scenario::return_shared(cancelled_reservation);
 
     scenario.next_tx(attendee);
     let refund = scenario.take_from_sender<coin::Coin<TEST_USDC>>();
