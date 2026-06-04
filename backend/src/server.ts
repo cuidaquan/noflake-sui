@@ -8,6 +8,14 @@ export interface ServerOptions {
 export function createServer({ db }: ServerOptions) {
   const app = Fastify({ logger: false });
 
+  app.addHook("onRequest", async (_request, reply) => {
+    reply.header("Access-Control-Allow-Origin", "*");
+    reply.header("Access-Control-Allow-Methods", "GET, OPTIONS");
+    reply.header("Access-Control-Allow-Headers", "Content-Type");
+  });
+
+  app.options("/*", async (_request, reply) => reply.code(204).send());
+
   app.get("/health", async () => ({ ok: true }));
 
   app.get("/events/:eventId", async (request, reply) => {

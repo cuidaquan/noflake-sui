@@ -35,4 +35,23 @@ describe("backend api", () => {
 
     await app.close();
   });
+
+  it("allows frontend browser requests from another local port", async () => {
+    const db = createDatabase(":memory:");
+    const app = createServer({ db });
+    const response = await app.inject({
+      method: "OPTIONS",
+      url: "/events/0xevent",
+      headers: {
+        origin: "http://127.0.0.1:5173",
+        "access-control-request-method": "GET",
+      },
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(response.headers["access-control-allow-origin"]).toBe("*");
+    expect(response.headers["access-control-allow-methods"]).toContain("GET");
+
+    await app.close();
+  });
 });
