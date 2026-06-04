@@ -219,7 +219,8 @@ Excluded from MVP:
 - Demo events should be small, around `3-5` attendees.
 - `undo_check_in` is intentionally not supported. Hosts must verify the confirmation screen before signing.
 - The current UI uses manual QR payload paste as the reliable demo path. Scanner integration can be added later.
-- Duplicate reservation prevention should be hardened on-chain in a future iteration.
+- Duplicate reservation prevention is enforced on-chain, and attendees can rejoin after a cancel.
+- Settlement is gated by the event end time, so hosts cannot settle early.
 
 ## Why Sui
 
