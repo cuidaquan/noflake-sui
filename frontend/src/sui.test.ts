@@ -17,6 +17,7 @@ import {
   validateCheckInPayloadForEvent,
   deriveNoShowCount,
   deriveSettlementPreview,
+  deriveSeatSummary,
   eventStatusLabel,
   extractSettlementSnapshot,
   formatUsdcAmountFromAtomicUnits,
@@ -164,6 +165,44 @@ describe("NoFlake transaction builders", () => {
       noShowCount: 1,
       vaultBalance: "20",
       distributionLabel: "Checked-in attendees",
+      checkedInRefundedAmount: "40",
+    });
+  });
+
+  it("describes no-shows as settled instead of remaining in the vault after settlement", () => {
+    const settledEvent = {
+      objectId: "0xevent",
+      vaultObjectId: "0xvault",
+      hostAddress: "0xhost",
+      title: "Event",
+      startMs: 1_000,
+      endMs: 2_000,
+      depositAmount: "20000000",
+      seatCount: 3,
+      reservedCount: 3,
+      checkedInCount: 2,
+      settlementMode: "party" as const,
+      status: "settled" as const,
+      updatedDigest: "digest",
+      reservations: [],
+      settlement: {
+        objectId: "0xreceipt",
+        eventObjectId: "0xevent",
+        totalReserved: 3,
+        totalCheckedIn: 2,
+        totalNoShow: 1,
+        forfeitedAmount: "0",
+        distributedAmount: "20000000",
+        settledDigest: "settleDigest",
+      },
+    };
+
+    expect(deriveSeatSummary(settledEvent)).toBe("1 no-show settled");
+    expect(
+      deriveSettlementPreview(settledEvent),
+    ).toMatchObject({
+      noShowCount: 1,
+      vaultBalance: "0",
       checkedInRefundedAmount: "40",
     });
   });

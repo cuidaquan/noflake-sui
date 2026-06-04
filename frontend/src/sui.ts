@@ -428,12 +428,22 @@ export function deriveNoShowCount(event: EventSnapshot): number {
   return Math.max(0, event.reservedCount - event.checkedInCount);
 }
 
-export function deriveSettlementPreview(event: EventSnapshot): SettlementPreview {
+export function deriveSeatSummary(event: EventSnapshot): string {
   const noShowCount = deriveNoShowCount(event);
+  const noShowLabel = noShowCount === 1 ? "no-show" : "no-shows";
+  if (event.status === "settled") {
+    return `${noShowCount} ${noShowLabel} settled`;
+  }
+  return `${noShowCount} ${noShowLabel} remain in vault`;
+}
+
+export function deriveSettlementPreview(event: EventSnapshot): SettlementPreview {
+  const noShowCount = event.status === "settled" && event.settlement ? event.settlement.totalNoShow : deriveNoShowCount(event);
   const depositAmount = BigInt(event.depositAmount);
+  const vaultBalance = event.status === "settled" ? 0n : BigInt(noShowCount) * depositAmount;
   return {
     noShowCount,
-    vaultBalance: formatUsdcAmountFromAtomicUnits(BigInt(noShowCount) * depositAmount),
+    vaultBalance: formatUsdcAmountFromAtomicUnits(vaultBalance),
     distributionLabel: event.settlementMode === "party" ? "Checked-in attendees" : "Host",
     checkedInRefundedAmount: formatUsdcAmountFromAtomicUnits(BigInt(event.checkedInCount) * depositAmount),
   };

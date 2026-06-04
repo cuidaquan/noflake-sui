@@ -20,7 +20,7 @@ import type { SuiJsonRpcClient } from "@mysten/sui/jsonRpc";
 import { QRCodeSVG } from "qrcode.react";
 import type { EventSnapshot, ReservationSnapshot } from "./api/client";
 import { fetchEventSnapshot } from "./api/client";
-import { createInitialEventState } from "./event-state";
+import { createInitialEventState, readLastEventId, saveLastEventId } from "./event-state";
 import {
   buildCheckInPayload,
   buildCheckInTransaction,
@@ -29,7 +29,7 @@ import {
   buildReserveTransaction,
   buildSettleEventTransaction,
   canSettleEvent,
-  deriveNoShowCount,
+  deriveSeatSummary,
   deriveSettlementPreview,
   eventStatusLabel,
   explorerObjectUrl,
@@ -112,7 +112,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
   const currentWallet = useCurrentWallet({ dAppKit });
 
   useEffect(() => {
-    const eventId = new URLSearchParams(window.location.search).get("event");
+    const eventId = new URLSearchParams(window.location.search).get("event") ?? readLastEventId();
     if (!eventId) return;
 
     setManualEventId(eventId);
@@ -146,6 +146,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
       setEvent(snapshot);
       setSettlementResult(snapshot.settlement);
       setSelectedReservationId(snapshot.reservations[0]?.objectId ?? "");
+      saveLastEventId(snapshot.objectId);
       setLoadState("idle");
       setTxState("success");
       setTxMessage(`Loaded event ${formatShortAddress(snapshot.objectId)} from backend cache.`);
@@ -275,6 +276,8 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
       reservations: [],
       settlement: null,
     });
+    setManualEventId(refs.eventObjectId);
+    saveLastEventId(refs.eventObjectId);
     setSelectedReservationId("");
     setTxMessage(`Create event: ${formatShortAddress(refs.eventObjectId)} created.`);
   }
@@ -582,7 +585,7 @@ function StatusStrip({
       <div>
         <span>Seats</span>
         <strong>{event ? `${event.reservedCount}/${event.seatCount}` : "0/0"}</strong>
-        <p>{event ? `${deriveNoShowCount(event)} no-shows remain in vault` : "No vault yet"}</p>
+        <p>{event ? deriveSeatSummary(event) : "No vault yet"}</p>
       </div>
     </section>
   );
