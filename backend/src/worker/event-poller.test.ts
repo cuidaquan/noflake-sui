@@ -98,6 +98,41 @@ describe("NoFlake event poller", () => {
     db.close();
   });
 
+  it("ignores cursors saved for a previous package", async () => {
+    const db = createDatabase(":memory:");
+    db.upsertEvent({
+      objectId: "0xevent",
+      vaultObjectId: "0xvault",
+      hostAddress: "0xhost",
+      title: "Sui Builder Dinner",
+      startMs: 1_000,
+      endMs: 2_000,
+      depositAmount: "20",
+      seatCount: 3,
+      reservedCount: 0,
+      checkedInCount: 0,
+      settlementMode: "party",
+      status: "open",
+      updatedDigest: "digest-event",
+    });
+    db.setEventCursor("ReservationCreated", { txDigest: "old-package-digest", eventSeq: "0" });
+
+    const client = clientWithCursorSensitiveEvents([
+      event("ReservationCreated", "digest-new", "0", {
+        event_id: "0xevent",
+        reservation_id: "0xreservation-new",
+        attendee: "0xa",
+        deposit_amount: "20",
+      }),
+    ]);
+
+    expect(await pollNoFlakeEvents({ client, db, packageId })).toBe(1);
+    expect(db.getReservation("0xreservation-new")).toBeDefined();
+    expect(db.getEventCursor(`${packageId}:ReservationCreated`)).toEqual({ txDigest: "digest-new", eventSeq: "0" });
+
+    db.close();
+  });
+
   it("processes multiple pages and saves the final cursor", async () => {
     const db = createDatabase(":memory:");
     const eventA = createdEvent("0xevent-a", "digest-a");
@@ -109,7 +144,7 @@ describe("NoFlake event poller", () => {
     expect(await pollNoFlakeEvents({ client, db, packageId })).toBe(2);
     expect(db.getEvent("0xevent-a")).toBeDefined();
     expect(db.getEvent("0xevent-b")).toBeDefined();
-    expect(db.getEventCursor("EventCreated")).toEqual({ txDigest: "digest-b", eventSeq: "0" });
+    expect(db.getEventCursor(`${packageId}:EventCreated`)).toEqual({ txDigest: "digest-b", eventSeq: "0" });
 
     db.close();
   });
@@ -137,7 +172,7 @@ describe("NoFlake event poller", () => {
     const client = clientWithPages({ EventCreated: [[malformed]] });
 
     expect(await pollNoFlakeEvents({ client, db, packageId })).toBe(0);
-    expect(db.getEventCursor("EventCreated")).toEqual({ txDigest: "digest-malformed", eventSeq: "0" });
+    expect(db.getEventCursor(`${packageId}:EventCreated`)).toEqual({ txDigest: "digest-malformed", eventSeq: "0" });
 
     db.close();
   });
@@ -163,6 +198,20 @@ function createdEvent(eventObjectId: string, txDigest: string): SuiEvent {
     seat_count: "3",
     settlement_mode: "0",
   });
+}
+
+function clientWithCursorSensitiveEvents(events: SuiEvent[]): SuiEventClient {
+  return {
+    async queryEvents(input) {
+      const eventName = input.query.MoveEventType.split("::").at(-1);
+      const data = input.cursor ? [] : events.filter((item) => item.type.endsWith(`::${eventName}`));
+      return {
+        data,
+        nextCursor: data.at(-1)?.id ?? input.cursor ?? null,
+        hasNextPage: false,
+      };
+    },
+  };
 }
 
 function clientWithEvents(events: SuiEvent[]): SuiEventClient {

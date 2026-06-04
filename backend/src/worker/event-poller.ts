@@ -76,7 +76,8 @@ export async function pollNoFlakeEvents({ client, db, packageId }: EventPollerOp
   let processed = 0;
   let pagesProcessed = 0;
   for (const eventName of eventTypes) {
-    let cursor = db.getEventCursor(eventName) ?? null;
+    const cursorKey = `${packageId}:${eventName}`;
+    let cursor = db.getEventCursor(cursorKey) ?? null;
     while (pagesProcessed < MAX_PAGES_PER_POLL) {
       const result = await client.queryEvents({
         query: { MoveEventType: `${packageId}::noflake::${eventName}` },
@@ -100,7 +101,7 @@ export async function pollNoFlakeEvents({ client, db, packageId }: EventPollerOp
       }
 
       if (result.nextCursor) {
-        db.setEventCursor(eventName, result.nextCursor);
+        db.setEventCursor(cursorKey, result.nextCursor);
         cursor = result.nextCursor;
       }
 
