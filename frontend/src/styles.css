@@ -583,12 +583,23 @@ button:disabled {
 }
 
 .detail-list {
-  grid-template-columns: 120px 1fr;
+  grid-template-columns: 120px minmax(0, 1fr);
 }
 
 .detail-list span {
   color: #52624c;
   font-weight: 900;
+}
+
+.detail-list strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.detail-list strong:last-child {
+  font-family: "Courier New", monospace;
+  font-size: 0.82rem;
 }
 
 .object-card {
