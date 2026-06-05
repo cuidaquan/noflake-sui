@@ -152,11 +152,11 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
       saveLastEventId(snapshot.objectId);
       setLoadState("idle");
       setTxState("success");
-      setTxMessage(`Loaded event ${formatShortAddress(snapshot.objectId)} from event cache.`);
+      setTxMessage(`Loaded event ${formatShortAddress(snapshot.objectId)} from Sui events.`);
     } catch {
       setLoadState("error");
       setTxState("error");
-      setTxMessage("Backend cache unavailable or event was not found.");
+      setTxMessage("Event snapshot unavailable from Sui RPC or event was not found.");
     }
   }
 
@@ -526,7 +526,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
           </div>
         </header>
 
-        {loadState === "error" ? <div className="notice notice-error">Backend cache unavailable or event was not found.</div> : null}
+        {loadState === "error" ? <div className="notice notice-error">Event snapshot unavailable from Sui RPC or event was not found.</div> : null}
         {txState !== "idle" ? <div className={`notice notice-${txState}`}>{txMessage}</div> : null}
 
         <StatusStrip account={account?.address ?? null} walletName={currentWallet?.name ?? null} event={event} />

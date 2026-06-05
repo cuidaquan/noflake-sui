@@ -312,7 +312,7 @@ export function validateCheckInPayloadForEvent(payload: CheckInPayloadInput, eve
 
   const reservation = event.reservations.find((item) => item.objectId === payload.reservationObjectId);
   if (!reservation) {
-    return { ok: false, reason: "Reservation was not found in the current event cache." };
+    return { ok: false, reason: "Reservation was not found in the loaded event snapshot." };
   }
 
   if (reservation.attendeeAddress !== payload.attendeeAddress) {
