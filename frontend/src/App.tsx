@@ -21,6 +21,7 @@ import { QRCodeSVG } from "qrcode.react";
 import type { EventSnapshot, ReservationSnapshot } from "./api/client";
 import { fetchEventSnapshot } from "./api/client";
 import { createInitialEventState, readInitialEventId, saveLastEventId } from "./event-state";
+import { publicAssetUrl } from "./public-assets";
 import {
   buildCheckInPayload,
   buildCheckInTransaction,
@@ -76,6 +77,7 @@ interface CheckInDraftState {
 
 const packageId = import.meta.env.VITE_NOFLAKE_PACKAGE_ID ?? "";
 const staticDemoEventId = import.meta.env.VITE_NOFLAKE_DEMO_EVENT_ID ?? "";
+const logoUrl = publicAssetUrl("noflake-logo.png");
 const coinType =
   import.meta.env.VITE_NOFLAKE_COIN_TYPE ??
   "0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC";
@@ -496,7 +498,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
     <main className="app-shell">
       <aside className="rail">
         <div className="brand-mark" aria-label="NoFlake">
-          <img src="/noflake-logo.png" alt="" />
+          <img src={logoUrl} alt="" />
         </div>
         <button className={viewMode === "host" ? "rail-button active" : "rail-button"} onClick={() => setViewMode("host")} title="Host dashboard">
           <ClipboardCheck size={19} />
