@@ -42,7 +42,6 @@ export interface EventSnapshot {
   settlement: SettlementSnapshot | null;
 }
 
-const apiBaseUrl = import.meta.env.VITE_NOFLAKE_API_URL ?? "http://127.0.0.1:8787";
 const packageId = import.meta.env.VITE_NOFLAKE_PACKAGE_ID ?? "";
 const staticDemoOnly = import.meta.env.VITE_NOFLAKE_STATIC_DEMO === "true";
 const staticDemoUrl = `${import.meta.env.BASE_URL}demo-event.json`;
@@ -50,17 +49,6 @@ const staticDemoUrl = `${import.meta.env.BASE_URL}demo-event.json`;
 export async function fetchEventSnapshot(eventId: string): Promise<EventSnapshot> {
   if (staticDemoOnly) {
     return fetchStaticDemoEventSnapshot(eventId);
-  }
-
-  if (apiBaseUrl) {
-    try {
-      const response = await fetch(`${apiBaseUrl}/events/${eventId}`);
-      if (response.ok) {
-        return (await response.json()) as EventSnapshot;
-      }
-    } catch {
-      // Fall through to the browser-side Sui event indexer.
-    }
   }
 
   if (packageId) {
@@ -77,15 +65,6 @@ export async function fetchEventSnapshot(eventId: string): Promise<EventSnapshot
   }
 
   return fetchStaticDemoEventSnapshot(eventId);
-}
-
-export async function fetchReservationSnapshot(reservationId: string): Promise<ReservationSnapshot> {
-  const response = await fetch(`${apiBaseUrl}/reservations/${reservationId}`);
-  if (!response.ok) {
-    throw new Error(`Reservation ${reservationId} was not found`);
-  }
-
-  return (await response.json()) as ReservationSnapshot;
 }
 
 async function fetchStaticDemoEventSnapshot(eventId: string): Promise<EventSnapshot> {

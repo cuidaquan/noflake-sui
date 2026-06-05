@@ -39,7 +39,6 @@ jobs:
           VITE_NOFLAKE_DEMO_EVENT_ID: "0xa68fa833ceaa8fb6af92d6e91914e4c4849fb138ea1823d1a96dfce85672a056"
           VITE_NOFLAKE_PACKAGE_ID: "0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef"
           VITE_NOFLAKE_COIN_TYPE: "0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC"
-          VITE_NOFLAKE_API_URL: ""
 
       - uses: actions/configure-pages@v6
         with:

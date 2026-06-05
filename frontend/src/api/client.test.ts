@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchEventSnapshot, type EventSnapshot } from "./client";
+import type { EventSnapshot } from "./client";
 
 const demoEvent: EventSnapshot = {
   objectId: "0xdemo",
@@ -26,19 +26,19 @@ describe("frontend api client", () => {
     vi.resetModules();
   });
 
-  it("falls back to the static demo event snapshot when the backend cache misses", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(new Response("not found", { status: 404 }))
-      .mockResolvedValueOnce(Response.json(demoEvent));
+  it("falls back to the static demo event snapshot when Sui RPC indexing is not configured", async () => {
+    vi.stubEnv("VITE_NOFLAKE_PACKAGE_ID", "");
+    const { fetchEventSnapshot } = await import("./client");
+    const fetchMock = vi.fn().mockResolvedValueOnce(Response.json(demoEvent));
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(fetchEventSnapshot("0xdemo")).resolves.toEqual(demoEvent);
-    expect(fetchMock).toHaveBeenNthCalledWith(1, "http://127.0.0.1:8787/events/0xdemo");
-    expect(fetchMock).toHaveBeenNthCalledWith(2, "/demo-event.json");
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith("/demo-event.json");
   });
 
   it("does not use the static demo event for a different event id", async () => {
+    const { fetchEventSnapshot } = await import("./client");
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response("not found", { status: 404 }))
@@ -48,12 +48,11 @@ describe("frontend api client", () => {
     await expect(fetchEventSnapshot("0xother")).rejects.toThrow("Event 0xother was not found");
   });
 
-  it("falls back to Sui RPC events before the static demo snapshot", async () => {
+  it("loads from Sui RPC events without calling a backend", async () => {
     vi.stubEnv("VITE_NOFLAKE_PACKAGE_ID", "0xpackage");
     const { fetchEventSnapshot: fetchSnapshotWithSuiFallback } = await import("./client");
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(new Response("not found", { status: 404 }))
       .mockResolvedValueOnce(suiRpcResponse([
         suiEvent("EventCreated", "create-digest", {
           event_id: "0xdemo",
@@ -67,14 +66,7 @@ describe("frontend api client", () => {
           settlement_mode: 1,
         }),
       ]))
-      .mockResolvedValueOnce(suiRpcResponse([
-        suiEvent("ReservationCreated", "reserve-digest", {
-          event_id: "0xdemo",
-          reservation_id: "0xreservation",
-          attendee: "0xattendee",
-          deposit_amount: "20000000",
-        }),
-      ]))
+      .mockResolvedValueOnce(suiRpcResponse([]))
       .mockResolvedValueOnce(suiRpcResponse([]))
       .mockResolvedValueOnce(suiRpcResponse([]))
       .mockResolvedValueOnce(suiRpcResponse([]));
@@ -84,14 +76,30 @@ describe("frontend api client", () => {
       objectId: "0xdemo",
       vaultObjectId: "0xvault",
       title: "Demo Dinner",
-      reservedCount: 1,
-      reservations: [{ objectId: "0xreservation", status: "reserved" }],
     });
-    expect(fetchMock).toHaveBeenCalledTimes(6);
-    expect(fetchMock).not.toHaveBeenCalledWith("/demo-event.json");
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock.mock.calls.every(([input]) => !String(input).includes("/events/"))).toBe(true);
   });
 
-  it("uses the static demo event before the backend when static demo mode is enabled", async () => {
+  it("falls back to the static demo snapshot when Sui RPC indexing cannot find the event", async () => {
+    vi.stubEnv("VITE_NOFLAKE_PACKAGE_ID", "0xpackage");
+    const { fetchEventSnapshot } = await import("./client");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(suiRpcResponse([]))
+      .mockResolvedValueOnce(suiRpcResponse([]))
+      .mockResolvedValueOnce(suiRpcResponse([]))
+      .mockResolvedValueOnce(suiRpcResponse([]))
+      .mockResolvedValueOnce(suiRpcResponse([]))
+      .mockResolvedValueOnce(Response.json(demoEvent));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchEventSnapshot("0xdemo")).resolves.toEqual(demoEvent);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock).toHaveBeenLastCalledWith("/demo-event.json");
+  });
+
+  it("uses the static demo event before Sui RPC when static demo mode is enabled", async () => {
     vi.stubEnv("VITE_NOFLAKE_STATIC_DEMO", "true");
     const { fetchEventSnapshot: fetchStaticEventSnapshot } = await import("./client");
     const fetchMock = vi.fn().mockResolvedValueOnce(Response.json(demoEvent));

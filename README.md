@@ -25,12 +25,7 @@ React/Vite frontend
   - Public reservation page
   - Reservation QR page
   - Wallet transactions via Mysten dApp Kit
-  - Browser-side Sui event indexing fallback
-
-Fastify backend
-  - Optional SQLite event/reservation/settlement cache
-  - Sui event poller
-  - Dashboard-friendly API responses
+  - Browser-side Sui event indexing
 
 Sui Move package
   - Event object
@@ -40,7 +35,7 @@ Sui Move package
   - EventCreated / ReservationCreated / CheckedInAndRefunded / EventSettled events
 ```
 
-The backend is an optional index/cache layer only. The frontend can also rebuild event snapshots directly from Sui RPC events, and neither layer controls vault funds.
+The deployed app has no backend. The frontend rebuilds event snapshots directly from Sui RPC package events, and all RSVP, refund, and settlement authority remains in the Move package.
 
 ## Repository Layout
 
@@ -51,8 +46,6 @@ noflake-sui/
     Published.toml
     sources/
     tests/
-  backend/
-    src/
   frontend/
     public/
     src/
@@ -71,8 +64,6 @@ noflake-sui/
 - Vite 8
 - Mysten dApp Kit React 2.0.3
 - Mysten Sui SDK 2.17.0
-- Fastify 5
-- SQLite via better-sqlite3 12
 - Vitest 4
 
 ## Testnet Deployment
@@ -103,23 +94,11 @@ Circle testnet USDC coin type:
 
 ## Environment
 
-Backend variables are documented in `backend/.env.example`:
-
-```bash
-HOST=127.0.0.1
-PORT=8787
-SUI_NETWORK=testnet
-NOFLAKE_PACKAGE_ID=0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef
-NOFLAKE_DB_PATH=noflake-cache.sqlite
-NOFLAKE_POLL_INTERVAL_MS=5000
-```
-
 Frontend variables:
 
 ```bash
 VITE_NOFLAKE_PACKAGE_ID=0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef
 VITE_NOFLAKE_COIN_TYPE=0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC
-VITE_NOFLAKE_API_URL=http://127.0.0.1:8787
 ```
 
 Zero-cost frontend deployment variables:
@@ -129,7 +108,6 @@ VITE_BASE_PATH=/noflake-sui/
 VITE_NOFLAKE_DEMO_EVENT_ID=0xa68fa833ceaa8fb6af92d6e91914e4c4849fb138ea1823d1a96dfce85672a056
 VITE_NOFLAKE_PACKAGE_ID=0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef
 VITE_NOFLAKE_COIN_TYPE=0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC
-VITE_NOFLAKE_API_URL=
 ```
 
 Set `VITE_NOFLAKE_STATIC_DEMO=true` only when you want to force the bundled `frontend/public/demo-event.json` snapshot instead of reading live package events from Sui RPC.
@@ -140,12 +118,6 @@ Install dependencies:
 
 ```bash
 npm install
-```
-
-Start the backend index/cache API:
-
-```bash
-npm run dev:backend
 ```
 
 Start the frontend:
@@ -167,7 +139,6 @@ Run verification:
 
 ```powershell
 npm run build
-npm run test:backend
 npm run lint -w frontend
 npx vitest run
 powershell -ExecutionPolicy Bypass -File scripts/sui.ps1 move test --path contracts
@@ -185,20 +156,7 @@ Recommended zero-cost deployment:
 https://<github-user>.github.io/noflake-sui/
 ```
 
-The Pages workflow builds the Vite app as a static site with no backend API URL. The app first tries to rebuild the event snapshot from Sui RPC package events, then falls back to `frontend/public/demo-event.json` if RPC indexing is unavailable. Judges can view the complete settled demo without waiting for a backend cache to wake up.
-
-Backend deployment is optional. The backend is only an index/cache API for chain events; it does not custody funds or authorize settlement. It can make event loading faster and reduce public RPC calls, but the frontend no longer depends on it for the deployed demo. A free Node host such as Render can run it with settings like:
-
-```bash
-HOST=0.0.0.0
-PORT=<provider port>
-SUI_NETWORK=testnet
-NOFLAKE_PACKAGE_ID=0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef
-NOFLAKE_DB_PATH=/tmp/noflake-cache.sqlite
-NOFLAKE_POLL_INTERVAL_MS=5000
-```
-
-Free web services can sleep and usually have ephemeral filesystems, so the SQLite cache may be rebuilt after restarts. For a stable production backend, use persistent storage or port the cache to a serverless database such as Cloudflare D1. For the hackathon submission, the static frontend plus browser-side Sui event indexing is the lowest-cost reliable path.
+The Pages workflow builds the Vite app as a static site. The app first tries to rebuild the event snapshot from Sui RPC package events, then falls back to `frontend/public/demo-event.json` if RPC indexing is unavailable. Judges can view the complete settled demo with no server, database, or sleeping free-tier backend.
 
 ## Demo Script
 
@@ -240,7 +198,7 @@ Included:
 - Host check-in confirmation
 - Immediate check-in refund
 - Final settlement
-- Frontend Sui event indexing with optional backend cache
+- Frontend Sui event indexing
 - Demo fallback controls and Explorer links
 
 Excluded from MVP:
