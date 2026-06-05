@@ -1,0 +1,51 @@
+{
+  "objectId": "0xa68fa833ceaa8fb6af92d6e91914e4c4849fb138ea1823d1a96dfce85672a056",
+  "vaultObjectId": "0xe80d2b6fef701b3e83823eeb9a764a00cdf47067e1649bae5a7bda5f8bf0b2e4",
+  "hostAddress": "0x8c10b949f58baad7392615c3b7ccbada83d470b17c969e96ab48fd282da6f135",
+  "title": "Sui Builder Dinner",
+  "startMs": 1780545600000,
+  "endMs": 1780556400000,
+  "depositAmount": "20000000",
+  "seatCount": 3,
+  "reservedCount": 3,
+  "checkedInCount": 2,
+  "settlementMode": "party",
+  "status": "settled",
+  "updatedDigest": "6RQYPonMU5hPDZVSC6w42dKh4SKNvYy6UFp1FmJeUFRB",
+  "reservations": [
+    {
+      "objectId": "0x54dd7df86644ff3600f283ef94409690050c987a41c475fc011c99ec8356e28c",
+      "eventObjectId": "0xa68fa833ceaa8fb6af92d6e91914e4c4849fb138ea1823d1a96dfce85672a056",
+      "attendeeAddress": "0x217ad641335564a55d732dd310a88d0c7e4794d5d96a0e229a12d47712eb155f",
+      "depositAmount": "20000000",
+      "status": "reserved",
+      "updatedDigest": "DBdDznQyc8amBEHcAKCtSZRQSoAyjQwxLfYyoTrm39W6"
+    },
+    {
+      "objectId": "0x7687d5e7dfe34c1b6a1728797bfb3e96af5391bc1826eba252ac4bd1f7058427",
+      "eventObjectId": "0xa68fa833ceaa8fb6af92d6e91914e4c4849fb138ea1823d1a96dfce85672a056",
+      "attendeeAddress": "0xa7fd22ed523d6c73b9c91d78be423f4590c434743290fb84adb7c409350c1859",
+      "depositAmount": "20000000",
+      "status": "checked_in_refunded",
+      "updatedDigest": "6EZAUN4Jas8NXnvgiQjtBwAei1sHvHCGHkA27Agw6qWs"
+    },
+    {
+      "objectId": "0xd7e679072a7435b4af9e3ed9a40a0e09956c9237a2f9d651de96e3e3dff5f7a3",
+      "eventObjectId": "0xa68fa833ceaa8fb6af92d6e91914e4c4849fb138ea1823d1a96dfce85672a056",
+      "attendeeAddress": "0x0020a8a7006d0f1eee952994192f67e41afabbb971678ac44eb068955193c6a4",
+      "depositAmount": "20000000",
+      "status": "checked_in_refunded",
+      "updatedDigest": "B3vptbxutLft52s6n1Xwbi75oZVcbjvVvGLo84jfwUEw"
+    }
+  ],
+  "settlement": {
+    "objectId": "0x06c46a4492fa7bf1124bc351cfc8e299a2d4c108e6dd7e331490e024d25e16e1",
+    "eventObjectId": "0xa68fa833ceaa8fb6af92d6e91914e4c4849fb138ea1823d1a96dfce85672a056",
+    "totalReserved": 3,
+    "totalCheckedIn": 2,
+    "totalNoShow": 1,
+    "forfeitedAmount": "0",
+    "distributedAmount": "20000000",
+    "settledDigest": "6RQYPonMU5hPDZVSC6w42dKh4SKNvYy6UFp1FmJeUFRB"
+  }
+}

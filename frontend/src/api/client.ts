@@ -41,14 +41,24 @@ export interface EventSnapshot {
 }
 
 const apiBaseUrl = import.meta.env.VITE_NOFLAKE_API_URL ?? "http://127.0.0.1:8787";
+const staticDemoOnly = import.meta.env.VITE_NOFLAKE_STATIC_DEMO === "true";
+const staticDemoUrl = `${import.meta.env.BASE_URL}demo-event.json`;
 
 export async function fetchEventSnapshot(eventId: string): Promise<EventSnapshot> {
-  const response = await fetch(`${apiBaseUrl}/events/${eventId}`);
-  if (!response.ok) {
-    throw new Error(`Event ${eventId} was not found`);
+  if (staticDemoOnly) {
+    return fetchStaticDemoEventSnapshot(eventId);
   }
 
-  return (await response.json()) as EventSnapshot;
+  try {
+    const response = await fetch(`${apiBaseUrl}/events/${eventId}`);
+    if (response.ok) {
+      return (await response.json()) as EventSnapshot;
+    }
+  } catch {
+    // Fall through to the static demo snapshot for zero-cost static deployments.
+  }
+
+  return fetchStaticDemoEventSnapshot(eventId);
 }
 
 export async function fetchReservationSnapshot(reservationId: string): Promise<ReservationSnapshot> {
@@ -58,4 +68,18 @@ export async function fetchReservationSnapshot(reservationId: string): Promise<R
   }
 
   return (await response.json()) as ReservationSnapshot;
+}
+
+async function fetchStaticDemoEventSnapshot(eventId: string): Promise<EventSnapshot> {
+  const response = await fetch(staticDemoUrl);
+  if (!response.ok) {
+    throw new Error(`Event ${eventId} was not found`);
+  }
+
+  const snapshot = (await response.json()) as EventSnapshot;
+  if (snapshot.objectId !== eventId) {
+    throw new Error(`Event ${eventId} was not found`);
+  }
+
+  return snapshot;
 }

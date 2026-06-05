@@ -18,6 +18,20 @@ export function readLastEventId(storage = browserStorage()): string {
   return storage.getItem(LAST_EVENT_ID_STORAGE_KEY)?.trim() ?? "";
 }
 
+export function readInitialEventId(
+  search = browserSearch(),
+  storage = browserStorage(),
+  fallbackEventId = "",
+): string {
+  const eventId = new URLSearchParams(search).get("event")?.trim();
+  if (eventId) return eventId;
+
+  const savedEventId = readLastEventId(storage);
+  if (savedEventId) return savedEventId;
+
+  return fallbackEventId.trim();
+}
+
 export function saveLastEventId(eventId: string, storage = browserStorage()): void {
   const normalized = eventId.trim();
   if (!normalized || !storage) return;
@@ -30,4 +44,8 @@ function browserStorage(): EventIdStorage | null {
   } catch {
     return null;
   }
+}
+
+function browserSearch(): string {
+  return typeof window === "undefined" ? "" : window.location.search;
 }

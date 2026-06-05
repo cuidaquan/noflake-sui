@@ -121,6 +121,17 @@ VITE_NOFLAKE_COIN_TYPE=0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037
 VITE_NOFLAKE_API_URL=http://127.0.0.1:8787
 ```
 
+Static demo variables for a zero-cost frontend deployment:
+
+```bash
+VITE_BASE_PATH=/noflake-sui/
+VITE_NOFLAKE_STATIC_DEMO=true
+VITE_NOFLAKE_DEMO_EVENT_ID=0xa68fa833ceaa8fb6af92d6e91914e4c4849fb138ea1823d1a96dfce85672a056
+VITE_NOFLAKE_PACKAGE_ID=0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef
+VITE_NOFLAKE_COIN_TYPE=0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC
+VITE_NOFLAKE_API_URL=
+```
+
 ## Local Development
 
 Install dependencies:
@@ -159,6 +170,33 @@ npm run lint -w frontend
 npx vitest run
 powershell -ExecutionPolicy Bypass -File scripts/sui.ps1 move test --path contracts
 ```
+
+## Deployment
+
+Recommended zero-cost deployment:
+
+1. Enable GitHub Pages for this repository with source `GitHub Actions`.
+2. Run the `Deploy frontend to GitHub Pages` workflow, or push to `main`.
+3. Submit the GitHub Pages URL, for example:
+
+```text
+https://<github-user>.github.io/noflake-sui/
+```
+
+The Pages workflow builds the Vite app as a static site and enables `VITE_NOFLAKE_STATIC_DEMO=true`. In that mode the app loads `frontend/public/demo-event.json` automatically, so judges can view the complete settled demo without waiting for a backend cache to wake up.
+
+Backend deployment is optional. The backend is only an index/cache API for chain events; it does not custody funds or authorize settlement. A free Node host such as Render can run it with settings like:
+
+```bash
+HOST=0.0.0.0
+PORT=<provider port>
+SUI_NETWORK=testnet
+NOFLAKE_PACKAGE_ID=0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef
+NOFLAKE_DB_PATH=/tmp/noflake-cache.sqlite
+NOFLAKE_POLL_INTERVAL_MS=5000
+```
+
+Free web services can sleep and usually have ephemeral filesystems, so the SQLite cache may be rebuilt after restarts. For a stable production backend, use persistent storage or port the cache to a serverless database such as Cloudflare D1. For the hackathon submission, the static frontend plus on-chain object/transaction links is the lowest-cost reliable path.
 
 ## Demo Script
 

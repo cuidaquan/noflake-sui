@@ -20,7 +20,7 @@ import type { SuiJsonRpcClient } from "@mysten/sui/jsonRpc";
 import { QRCodeSVG } from "qrcode.react";
 import type { EventSnapshot, ReservationSnapshot } from "./api/client";
 import { fetchEventSnapshot } from "./api/client";
-import { createInitialEventState, readLastEventId, saveLastEventId } from "./event-state";
+import { createInitialEventState, readInitialEventId, saveLastEventId } from "./event-state";
 import {
   buildCheckInPayload,
   buildCheckInTransaction,
@@ -75,6 +75,7 @@ interface CheckInDraftState {
 }
 
 const packageId = import.meta.env.VITE_NOFLAKE_PACKAGE_ID ?? "";
+const staticDemoEventId = import.meta.env.VITE_NOFLAKE_DEMO_EVENT_ID ?? "";
 const coinType =
   import.meta.env.VITE_NOFLAKE_COIN_TYPE ??
   "0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC";
@@ -112,7 +113,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
   const currentWallet = useCurrentWallet({ dAppKit });
 
   useEffect(() => {
-    const eventId = new URLSearchParams(window.location.search).get("event") ?? readLastEventId();
+    const eventId = readInitialEventId(window.location.search, undefined, staticDemoEventId);
     if (!eventId) return;
 
     setManualEventId(eventId);
@@ -149,7 +150,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
       saveLastEventId(snapshot.objectId);
       setLoadState("idle");
       setTxState("success");
-      setTxMessage(`Loaded event ${formatShortAddress(snapshot.objectId)} from backend cache.`);
+      setTxMessage(`Loaded event ${formatShortAddress(snapshot.objectId)} from event cache.`);
     } catch {
       setLoadState("error");
       setTxState("error");
