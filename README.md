@@ -25,9 +25,10 @@ React/Vite frontend
   - Public reservation page
   - Reservation QR page
   - Wallet transactions via Mysten dApp Kit
+  - Browser-side Sui event indexing fallback
 
 Fastify backend
-  - SQLite event/reservation/settlement cache
+  - Optional SQLite event/reservation/settlement cache
   - Sui event poller
   - Dashboard-friendly API responses
 
@@ -39,7 +40,7 @@ Sui Move package
   - EventCreated / ReservationCreated / CheckedInAndRefunded / EventSettled events
 ```
 
-The backend is an index/cache layer only. It does not control vault funds.
+The backend is an optional index/cache layer only. The frontend can also rebuild event snapshots directly from Sui RPC events, and neither layer controls vault funds.
 
 ## Repository Layout
 
@@ -121,16 +122,17 @@ VITE_NOFLAKE_COIN_TYPE=0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037
 VITE_NOFLAKE_API_URL=http://127.0.0.1:8787
 ```
 
-Static demo variables for a zero-cost frontend deployment:
+Zero-cost frontend deployment variables:
 
 ```bash
 VITE_BASE_PATH=/noflake-sui/
-VITE_NOFLAKE_STATIC_DEMO=true
 VITE_NOFLAKE_DEMO_EVENT_ID=0xa68fa833ceaa8fb6af92d6e91914e4c4849fb138ea1823d1a96dfce85672a056
 VITE_NOFLAKE_PACKAGE_ID=0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef
 VITE_NOFLAKE_COIN_TYPE=0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC
 VITE_NOFLAKE_API_URL=
 ```
+
+Set `VITE_NOFLAKE_STATIC_DEMO=true` only when you want to force the bundled `frontend/public/demo-event.json` snapshot instead of reading live package events from Sui RPC.
 
 ## Local Development
 
@@ -183,9 +185,9 @@ Recommended zero-cost deployment:
 https://<github-user>.github.io/noflake-sui/
 ```
 
-The Pages workflow builds the Vite app as a static site and enables `VITE_NOFLAKE_STATIC_DEMO=true`. In that mode the app loads `frontend/public/demo-event.json` automatically, so judges can view the complete settled demo without waiting for a backend cache to wake up.
+The Pages workflow builds the Vite app as a static site with no backend API URL. The app first tries to rebuild the event snapshot from Sui RPC package events, then falls back to `frontend/public/demo-event.json` if RPC indexing is unavailable. Judges can view the complete settled demo without waiting for a backend cache to wake up.
 
-Backend deployment is optional. The backend is only an index/cache API for chain events; it does not custody funds or authorize settlement. A free Node host such as Render can run it with settings like:
+Backend deployment is optional. The backend is only an index/cache API for chain events; it does not custody funds or authorize settlement. It can make event loading faster and reduce public RPC calls, but the frontend no longer depends on it for the deployed demo. A free Node host such as Render can run it with settings like:
 
 ```bash
 HOST=0.0.0.0
@@ -196,7 +198,7 @@ NOFLAKE_DB_PATH=/tmp/noflake-cache.sqlite
 NOFLAKE_POLL_INTERVAL_MS=5000
 ```
 
-Free web services can sleep and usually have ephemeral filesystems, so the SQLite cache may be rebuilt after restarts. For a stable production backend, use persistent storage or port the cache to a serverless database such as Cloudflare D1. For the hackathon submission, the static frontend plus on-chain object/transaction links is the lowest-cost reliable path.
+Free web services can sleep and usually have ephemeral filesystems, so the SQLite cache may be rebuilt after restarts. For a stable production backend, use persistent storage or port the cache to a serverless database such as Cloudflare D1. For the hackathon submission, the static frontend plus browser-side Sui event indexing is the lowest-cost reliable path.
 
 ## Demo Script
 
@@ -238,7 +240,7 @@ Included:
 - Host check-in confirmation
 - Immediate check-in refund
 - Final settlement
-- Backend event indexing/cache
+- Frontend Sui event indexing with optional backend cache
 - Demo fallback controls and Explorer links
 
 Excluded from MVP:

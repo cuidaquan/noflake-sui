@@ -1,3 +1,5 @@
+import { createSuiEventClient, fetchEventSnapshotFromSuiEvents } from "./sui-events";
+
 export type SettlementMode = "strict" | "party";
 export type EventStatus = "open" | "full" | "settled" | "cancelled";
 export type ReservationStatus = "reserved" | "cancelled" | "checked_in_refunded" | "no_show" | "forfeited";
@@ -41,6 +43,7 @@ export interface EventSnapshot {
 }
 
 const apiBaseUrl = import.meta.env.VITE_NOFLAKE_API_URL ?? "http://127.0.0.1:8787";
+const packageId = import.meta.env.VITE_NOFLAKE_PACKAGE_ID ?? "";
 const staticDemoOnly = import.meta.env.VITE_NOFLAKE_STATIC_DEMO === "true";
 const staticDemoUrl = `${import.meta.env.BASE_URL}demo-event.json`;
 
@@ -49,13 +52,28 @@ export async function fetchEventSnapshot(eventId: string): Promise<EventSnapshot
     return fetchStaticDemoEventSnapshot(eventId);
   }
 
-  try {
-    const response = await fetch(`${apiBaseUrl}/events/${eventId}`);
-    if (response.ok) {
-      return (await response.json()) as EventSnapshot;
+  if (apiBaseUrl) {
+    try {
+      const response = await fetch(`${apiBaseUrl}/events/${eventId}`);
+      if (response.ok) {
+        return (await response.json()) as EventSnapshot;
+      }
+    } catch {
+      // Fall through to the browser-side Sui event indexer.
     }
-  } catch {
-    // Fall through to the static demo snapshot for zero-cost static deployments.
+  }
+
+  if (packageId) {
+    try {
+      const snapshot = await fetchEventSnapshotFromSuiEvents({
+        eventId,
+        packageId,
+        client: createSuiEventClient(),
+      });
+      if (snapshot) return snapshot;
+    } catch {
+      // Fall through to the static demo snapshot for zero-cost static deployments.
+    }
   }
 
   return fetchStaticDemoEventSnapshot(eventId);
