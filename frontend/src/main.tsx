@@ -4,13 +4,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createDAppKit, DAppKitProvider } from "@mysten/dapp-kit-react";
 import { SuiJsonRpcClient, getJsonRpcFullnodeUrl } from "@mysten/sui/jsonRpc";
 import App from "./App";
+import { shouldEnableBurnerWallet } from "./dapp-kit-config";
 import "./styles.css";
 
 const queryClient = new QueryClient();
 const dAppKit = createDAppKit({
   networks: ["testnet"],
   defaultNetwork: "testnet",
-  enableBurnerWallet: true,
+  enableBurnerWallet: shouldEnableBurnerWallet(),
   createClient: () =>
     new SuiJsonRpcClient({
       network: "testnet",
