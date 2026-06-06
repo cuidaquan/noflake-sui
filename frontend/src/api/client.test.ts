@@ -28,6 +28,7 @@ describe("frontend api client", () => {
 
   it("falls back to the static demo event snapshot when Sui RPC indexing is not configured", async () => {
     vi.stubEnv("VITE_NOFLAKE_PACKAGE_ID", "");
+    vi.stubEnv("VITE_NOFLAKE_EVENT_PACKAGE_ID", "");
     const { fetchEventSnapshot } = await import("./client");
     const fetchMock = vi.fn().mockResolvedValueOnce(Response.json(demoEvent));
     vi.stubGlobal("fetch", fetchMock);
@@ -38,6 +39,8 @@ describe("frontend api client", () => {
   });
 
   it("does not use the static demo event for a different event id", async () => {
+    vi.stubEnv("VITE_NOFLAKE_PACKAGE_ID", "");
+    vi.stubEnv("VITE_NOFLAKE_EVENT_PACKAGE_ID", "");
     const { fetchEventSnapshot } = await import("./client");
     const fetchMock = vi
       .fn()
@@ -50,6 +53,7 @@ describe("frontend api client", () => {
 
   it("loads from Sui RPC events without calling a backend", async () => {
     vi.stubEnv("VITE_NOFLAKE_PACKAGE_ID", "0xpackage");
+    vi.stubEnv("VITE_NOFLAKE_EVENT_PACKAGE_ID", "0xpackage");
     const { fetchEventSnapshot: fetchSnapshotWithSuiFallback } = await import("./client");
     const fetchMock = vi
       .fn()
@@ -82,8 +86,44 @@ describe("frontend api client", () => {
     expect(fetchMock.mock.calls.every(([input]) => !String(input).includes("/events/"))).toBe(true);
   });
 
+  it("can query events from the original package while transactions use the upgraded package", async () => {
+    vi.stubEnv("VITE_NOFLAKE_PACKAGE_ID", "0xupgraded");
+    vi.stubEnv("VITE_NOFLAKE_EVENT_PACKAGE_ID", "0xoriginal");
+    const { fetchEventSnapshot: fetchSnapshotWithSuiFallback } = await import("./client");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(suiRpcResponse([
+        suiEvent("EventCreated", "create-digest", {
+          event_id: "0xdemo",
+          vault_id: "0xvault",
+          host: "0xhost",
+          title: "Demo Dinner",
+          start_ms: 1,
+          end_ms: 2,
+          deposit_amount: "20000000",
+          seat_count: 3,
+          settlement_mode: 1,
+        }, "0xoriginal"),
+      ]))
+      .mockResolvedValueOnce(suiRpcResponse([]))
+      .mockResolvedValueOnce(suiRpcResponse([]))
+      .mockResolvedValueOnce(suiRpcResponse([]))
+      .mockResolvedValueOnce(suiRpcResponse([]))
+      .mockResolvedValueOnce(suiRpcResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchSnapshotWithSuiFallback("0xdemo")).resolves.toMatchObject({
+      objectId: "0xdemo",
+      vaultObjectId: "0xvault",
+    });
+
+    const firstCallBody = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
+    expect(firstCallBody.params[0].MoveEventType).toBe("0xoriginal::noflake::EventCreated");
+  });
+
   it("falls back to the static demo snapshot when Sui RPC indexing cannot find the event", async () => {
     vi.stubEnv("VITE_NOFLAKE_PACKAGE_ID", "0xpackage");
+    vi.stubEnv("VITE_NOFLAKE_EVENT_PACKAGE_ID", "0xpackage");
     const { fetchEventSnapshot } = await import("./client");
     const fetchMock = vi
       .fn()
@@ -103,6 +143,8 @@ describe("frontend api client", () => {
 
   it("uses the static demo event before Sui RPC when static demo mode is enabled", async () => {
     vi.stubEnv("VITE_NOFLAKE_STATIC_DEMO", "true");
+    vi.stubEnv("VITE_NOFLAKE_PACKAGE_ID", "");
+    vi.stubEnv("VITE_NOFLAKE_EVENT_PACKAGE_ID", "");
     const { fetchEventSnapshot: fetchStaticEventSnapshot } = await import("./client");
     const fetchMock = vi.fn().mockResolvedValueOnce(Response.json(demoEvent));
     vi.stubGlobal("fetch", fetchMock);
@@ -113,10 +155,10 @@ describe("frontend api client", () => {
   });
 });
 
-function suiEvent(type: string, txDigest: string, parsedJson: Record<string, unknown>) {
+function suiEvent(type: string, txDigest: string, parsedJson: Record<string, unknown>, packageId = "0xpackage") {
   return {
     id: { txDigest, eventSeq: "0" },
-    type: `0xpackage::noflake::${type}`,
+    type: `${packageId}::noflake::${type}`,
     parsedJson,
   };
 }

@@ -10,6 +10,7 @@ import {
   ScanLine,
   ShieldCheck,
   Wallet,
+  XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCurrentAccount, useCurrentNetwork, useCurrentWallet } from "@mysten/dapp-kit-react";
@@ -26,7 +27,9 @@ import { canUseNativeQrScanner, qrScannerUnavailableReason } from "./qr-scanner"
 import {
   buildCheckInPayload,
   buildCheckInTransaction,
+  buildCancelEventTransaction,
   buildCancelReservationTransaction,
+  buildClaimCancelledRefundTransaction,
   buildCreateEventTransaction,
   buildDefaultCreateEventTimes,
   buildReserveTransaction,
@@ -557,6 +560,73 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
     setTxMessage(`Cancel reservation: ${formatUsdcAmountFromAtomicUnits(reservation.depositAmount)} USDC refund submitted.`);
   }
 
+  async function handleCancelEvent() {
+    if (!event) {
+      setTxMessage("Cancel event: create or load an event first.");
+      setTxState("error");
+      return;
+    }
+
+    if (event.status !== "open" && event.status !== "full") {
+      setTxMessage("Cancel event: only open or full events can be cancelled.");
+      setTxState("error");
+      return;
+    }
+
+    const result = await execute(
+      buildCancelEventTransaction(txConfig, {
+        eventObjectId: event.objectId,
+      }),
+      "Cancel event",
+    );
+    if (!result) return;
+
+    setEvent((current) => current ? ({
+      ...current,
+      status: "cancelled",
+      updatedDigest: result.digest,
+    }) : current);
+    setTxState("success");
+    setTxMessage("Cancel event: attendees can claim refunds for reserved seats.");
+  }
+
+  async function handleClaimCancelledRefund(reservation: ReservationSnapshot) {
+    if (!event) {
+      setTxMessage("Claim refund: create or load an event first.");
+      setTxState("error");
+      return;
+    }
+
+    if (event.status !== "cancelled" || reservation.status !== "reserved") {
+      setTxMessage("Claim refund: only reserved seats in cancelled events can be claimed.");
+      setTxState("error");
+      return;
+    }
+
+    const result = await execute(
+      buildClaimCancelledRefundTransaction(txConfig, {
+        eventObjectId: event.objectId,
+        vaultObjectId: event.vaultObjectId,
+        reservationObjectId: reservation.objectId,
+      }),
+      "Claim cancelled refund",
+    );
+    if (!result) return;
+
+    setEvent((current) => current ? ({
+      ...current,
+      reservedCount: Math.max(0, current.reservedCount - 1),
+      reservations: current.reservations.map((item) =>
+        item.objectId === reservation.objectId
+          ? { ...item, status: "cancelled", updatedDigest: result.digest }
+          : item,
+      ),
+      updatedDigest: result.digest,
+    }) : current);
+    setTxState("success");
+    setTxMessage(`Claim refund: ${formatUsdcAmountFromAtomicUnits(reservation.depositAmount)} USDC refund submitted.`);
+  }
+
   async function handleSettle() {
     if (!event) {
       setTxState("error");
@@ -667,6 +737,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
             onSelectReservation={setSelectedReservationId}
             onCreateEvent={handleCreateEvent}
             onSettle={handleSettle}
+            onCancelEvent={handleCancelEvent}
             onCheckIn={handleCheckIn}
             settlementResult={settlementResult}
             onCopy={copyText}
@@ -680,6 +751,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
               reservation={selectedReservation}
               accountAddress={account?.address ?? null}
               onCancelReservation={handleCancelReservation}
+              onClaimCancelledRefund={handleClaimCancelledRefund}
             />
           ) : <NoEventLoaded view="reservation" />
         )}
@@ -735,6 +807,7 @@ function HostDashboard({
   onCreateEvent,
   onCheckIn,
   onSettle,
+  onCancelEvent,
   settlementResult,
   onCopy,
 }: {
@@ -754,6 +827,7 @@ function HostDashboard({
   onCreateEvent: () => void;
   onCheckIn: (reservation: ReservationSnapshot) => void;
   onSettle: () => void;
+  onCancelEvent: () => void;
   settlementResult: EventSnapshot["settlement"];
   onCopy: (value: string, label: string) => void;
 }) {
@@ -908,6 +982,10 @@ function HostDashboard({
           <RefreshCw size={18} />
           {event.status === "settled" ? "Event settled" : "Settle event"}
         </button>
+        <button className="secondary-action danger-action" onClick={onCancelEvent} disabled={event.status !== "open" && event.status !== "full"}>
+          <XCircle size={18} />
+          {event.status === "cancelled" ? "Event cancelled" : "Cancel event"}
+        </button>
         {settlementResult ? (
           <div className="object-card settlement-result-card">
             <span>Receipt</span>
@@ -1013,18 +1091,21 @@ function ReservationPage({
   reservation,
   accountAddress,
   onCancelReservation,
+  onClaimCancelledRefund,
 }: {
   event: EventSnapshot;
   reservation: ReservationSnapshot;
   accountAddress: string | null;
   onCancelReservation: (reservation: ReservationSnapshot) => void;
+  onClaimCancelledRefund: (reservation: ReservationSnapshot) => void;
 }) {
   const qrPayload = buildCheckInPayload({
     eventObjectId: event.objectId,
     reservationObjectId: reservation.objectId,
     attendeeAddress: reservation.attendeeAddress,
   });
-  const canCancel = reservation.status === "reserved";
+  const canCancel = reservation.status === "reserved" && (event.status === "open" || event.status === "full");
+  const canClaimCancelledRefund = event.status === "cancelled" && reservation.status === "reserved";
   const isConnectedAttendee = accountAddress?.toLowerCase() === reservation.attendeeAddress.toLowerCase();
 
   return (
@@ -1052,6 +1133,10 @@ function ReservationPage({
         <button className="secondary-action" onClick={() => onCancelReservation(reservation)} disabled={!canCancel || !isConnectedAttendee}>
           <RefreshCw size={18} />
           {canCancel ? "Cancel reservation & refund" : "Reservation closed"}
+        </button>
+        <button className="secondary-action" onClick={() => onClaimCancelledRefund(reservation)} disabled={!canClaimCancelledRefund || !isConnectedAttendee}>
+          <CircleDollarSign size={18} />
+          {canClaimCancelledRefund ? "Claim cancelled-event refund" : "No cancelled refund"}
         </button>
         {canCancel && !isConnectedAttendee ? (
           <p className="helper-copy">Connect the attendee wallet that owns this reservation before signing cancellation.</p>

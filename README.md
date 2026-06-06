@@ -12,7 +12,7 @@ Primary hackathon track: `DeFi & Payments`
 - Demo video: https://youtu.be/CmTM3TNDl-8
 - Hackathon submission guide: [SUBMISSION.md](SUBMISSION.md)
 - Source repository: https://github.com/cuidaquan/noflake-sui
-- Sui testnet package: `0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef`
+- Sui testnet package: `0x7d0b8b3e9b655e5dfe28592009a87f67f667fc6619319c89d786251d45150f5c`
 
 ## MVP Flow
 
@@ -40,7 +40,7 @@ Sui Move package
   - EventVault<T>
   - Reservation object
   - SettlementReceipt object
-  - EventCreated / ReservationCreated / CheckedInAndRefunded / EventSettled events
+  - EventCreated / ReservationCreated / CheckedInAndRefunded / EventCancelled / EventSettled events
 ```
 
 The deployed app has no backend. The frontend rebuilds event snapshots directly from Sui RPC package events, and all RSVP, refund, and settlement authority remains in the Move package.
@@ -82,7 +82,13 @@ Network:
 Sui testnet
 ```
 
-Package ID:
+Callable package ID:
+
+```text
+0x7d0b8b3e9b655e5dfe28592009a87f67f667fc6619319c89d786251d45150f5c
+```
+
+Original package / event namespace:
 
 ```text
 0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef
@@ -92,6 +98,12 @@ Publish transaction digest:
 
 ```text
 AuH5BAga1jGQgPH7tMhNSx7JrAcFetLboCcrXw7Rz4Tp
+```
+
+Upgrade transaction digest:
+
+```text
+9usm64stFzcfef4DTtpe38oLKLHxyjgNEzpxid6HeksU
 ```
 
 Circle testnet USDC coin type:
@@ -105,7 +117,8 @@ Circle testnet USDC coin type:
 Frontend variables:
 
 ```bash
-VITE_NOFLAKE_PACKAGE_ID=0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef
+VITE_NOFLAKE_PACKAGE_ID=0x7d0b8b3e9b655e5dfe28592009a87f67f667fc6619319c89d786251d45150f5c
+VITE_NOFLAKE_EVENT_PACKAGE_ID=0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef
 VITE_NOFLAKE_COIN_TYPE=0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC
 ```
 
@@ -114,7 +127,8 @@ Zero-cost frontend deployment variables:
 ```bash
 VITE_BASE_PATH=/noflake-sui/
 VITE_NOFLAKE_DEMO_EVENT_ID=0xa68fa833ceaa8fb6af92d6e91914e4c4849fb138ea1823d1a96dfce85672a056
-VITE_NOFLAKE_PACKAGE_ID=0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef
+VITE_NOFLAKE_PACKAGE_ID=0x7d0b8b3e9b655e5dfe28592009a87f67f667fc6619319c89d786251d45150f5c
+VITE_NOFLAKE_EVENT_PACKAGE_ID=0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef
 VITE_NOFLAKE_COIN_TYPE=0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC
 ```
 
@@ -203,8 +217,10 @@ Included:
 - Event creation
 - Stablecoin deposit reservation
 - Reservation object and QR payload
+- Camera-based QR scanning with manual paste fallback
 - Host check-in confirmation
 - Immediate check-in refund
+- Attendee reservation cancellation and host event cancellation refund flows
 - Final settlement
 - Frontend Sui event indexing
 - Demo fallback controls and Explorer links
@@ -224,7 +240,7 @@ Excluded from MVP:
 
 - Demo events should be small, around `3-5` attendees.
 - `undo_check_in` is intentionally not supported. Hosts must verify the confirmation screen before signing.
-- The current UI uses manual QR payload paste as the reliable demo path. Scanner integration can be added later.
+- Camera QR scanning uses the browser `BarcodeDetector` and falls back to manual QR payload paste when unsupported.
 - Duplicate reservation prevention is enforced on-chain, and attendees can rejoin after a cancel.
 - Settlement is gated by the event end time, so hosts cannot settle early.
 

@@ -319,6 +319,12 @@ button:disabled {
   background: #c7d9f5;
 }
 
+.danger-action {
+  border-color: #9d2f1f;
+  background: #f6b1a6;
+  color: #20251f;
+}
+
 .compact-action {
   margin-top: 0;
 }

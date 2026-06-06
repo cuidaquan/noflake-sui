@@ -23,15 +23,19 @@ NoFlake fits this track because it builds a real-world payment workflow on Sui: 
 ## Testnet Proof
 
 - Network: Sui testnet
-- Package ID: `0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef`
+- Callable package ID: `0x7d0b8b3e9b655e5dfe28592009a87f67f667fc6619319c89d786251d45150f5c`
+- Original package / event namespace: `0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef`
 - Publish digest: `AuH5BAga1jGQgPH7tMhNSx7JrAcFetLboCcrXw7Rz4Tp`
+- Upgrade digest: `9usm64stFzcfef4DTtpe38oLKLHxyjgNEzpxid6HeksU`
 - Demo event ID: `0xa68fa833ceaa8fb6af92d6e91914e4c4849fb138ea1823d1a96dfce85672a056`
 - Settlement receipt ID: `0x06c46a4492fa7bf1124bc351cfc8e299a2d4c108e6dd7e331490e024d25e16e1`
 - Circle testnet USDC coin type: `0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC`
 
 Explorer links:
 
-- Package: https://suiscan.xyz/testnet/object/0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef
+- Callable package: https://suiscan.xyz/testnet/object/0x7d0b8b3e9b655e5dfe28592009a87f67f667fc6619319c89d786251d45150f5c
+- Original package: https://suiscan.xyz/testnet/object/0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef
+- Upgrade transaction: https://suiscan.xyz/testnet/tx/9usm64stFzcfef4DTtpe38oLKLHxyjgNEzpxid6HeksU
 - Demo event: https://suiscan.xyz/testnet/object/0xa68fa833ceaa8fb6af92d6e91914e4c4849fb138ea1823d1a96dfce85672a056
 - Settlement receipt: https://suiscan.xyz/testnet/object/0x06c46a4492fa7bf1124bc351cfc8e299a2d4c108e6dd7e331490e024d25e16e1
 - Settlement transaction: https://suiscan.xyz/testnet/tx/6RQYPonMU5hPDZVSC6w42dKh4SKNvYy6UFp1FmJeUFRB
@@ -56,7 +60,7 @@ The Move package owns the payment rules:
 - `EventVault<T>` holds all deposits.
 - `Reservation` represents an attendee's RSVP commitment.
 - `SettlementReceipt` records the final settlement.
-- Move events expose `EventCreated`, `ReservationCreated`, `CheckedInAndRefunded`, and `EventSettled`.
+- Move events expose `EventCreated`, `ReservationCreated`, `CheckedInAndRefunded`, `EventCancelled`, and `EventSettled`.
 
 ## Demo Video Structure
 
@@ -109,12 +113,12 @@ NoFlake is intentionally focused: programmable RSVP deposits, immediate refunds,
 - Published a Sui testnet Move package.
 - Implemented deposit-backed reservations and immediate check-in refunds.
 - Implemented Party Mode settlement where no-show deposits reward checked-in attendees.
+- Added cancellation flows for attendee-initiated reservation refunds and host-cancelled event refunds.
 - Removed the backend and deployed the app with zero server cost.
 - Added browser-side Sui event indexing with a static demo fallback.
 
 ## Next Steps
 
-- Add a camera-based QR scanner in addition to manual payload paste.
 - Add sponsor-funded event modes.
 - Add optional organizer analytics.
 - Add batch settlement support for larger events.

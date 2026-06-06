@@ -43,6 +43,7 @@ export interface EventSnapshot {
 }
 
 const packageId = import.meta.env.VITE_NOFLAKE_PACKAGE_ID ?? "";
+const eventPackageId = import.meta.env.VITE_NOFLAKE_EVENT_PACKAGE_ID ?? packageId;
 const staticDemoOnly = import.meta.env.VITE_NOFLAKE_STATIC_DEMO === "true";
 const staticDemoUrl = `${import.meta.env.BASE_URL}demo-event.json`;
 
@@ -51,11 +52,11 @@ export async function fetchEventSnapshot(eventId: string): Promise<EventSnapshot
     return fetchStaticDemoEventSnapshot(eventId);
   }
 
-  if (packageId) {
+  if (eventPackageId) {
     try {
       const snapshot = await fetchEventSnapshotFromSuiEvents({
         eventId,
-        packageId,
+        packageId: eventPackageId,
         client: createSuiEventClient(),
       });
       if (snapshot) return snapshot;
