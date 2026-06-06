@@ -6,6 +6,13 @@ Free event RSVPs are easy to make and easy to abandon. NoFlake turns RSVP into a
 
 Primary hackathon track: `DeFi & Payments`
 
+## Submission Quick Links
+
+- Live demo: https://cuidaquan.github.io/noflake-sui/
+- Hackathon submission guide: [SUBMISSION.md](SUBMISSION.md)
+- Source repository: https://github.com/cuidaquan/noflake-sui
+- Sui testnet package: `0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef`
+
 ## MVP Flow
 
 1. Host creates a deposit-backed event.
@@ -153,7 +160,7 @@ Recommended zero-cost deployment:
 3. Submit the GitHub Pages URL, for example:
 
 ```text
-https://<github-user>.github.io/noflake-sui/
+https://cuidaquan.github.io/noflake-sui/
 ```
 
 The Pages workflow builds the Vite app as a static site. The app first tries to rebuild the event snapshot from Sui RPC package events, then falls back to `frontend/public/demo-event.json` if RPC indexing is unavailable. Judges can view the complete settled demo with no server, database, or sleeping free-tier backend.
