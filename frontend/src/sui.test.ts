@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { Transaction } from "@mysten/sui/transactions";
 import {
   buildCheckInTransaction,
+  buildCancelReservationTransaction,
+  buildCancelEventTransaction,
+  buildClaimCancelledRefundTransaction,
   buildCreateEventTransaction,
   buildReserveTransaction,
   buildSettleEventTransaction,
@@ -34,7 +37,7 @@ const config = {
 
 const eventObjectId = "0x00000000000000000000000000000000000000000000000000000000000000e1";
 const vaultObjectId = "0x00000000000000000000000000000000000000000000000000000000000000a1";
-const reservationObjectId = "0x00000000000000000000000000000000000000000000000000000000000000r1";
+const reservationObjectId = "0x0000000000000000000000000000000000000000000000000000000000000011";
 const coinObjectId = "0x00000000000000000000000000000000000000000000000000000000000000c1";
 
 describe("NoFlake transaction builders", () => {
@@ -509,6 +512,59 @@ describe("NoFlake transaction builders", () => {
     expect(tx.getData().inputs[2]).toMatchObject({
       UnresolvedObject: {
         objectId: "0x0000000000000000000000000000000000000000000000000000000000000006",
+      },
+    });
+  });
+
+  it("builds attendee reservation cancellation calls", () => {
+    const tx = buildCancelReservationTransaction(config, {
+      eventObjectId,
+      vaultObjectId,
+      reservationObjectId,
+    });
+
+    expect(tx.getData().commands[0]).toMatchObject({
+      MoveCall: {
+        package: config.packageId,
+        module: "noflake",
+        function: "cancel_reservation",
+        typeArguments: [config.coinType],
+        arguments: [
+          { Input: 0, type: "object" },
+          { Input: 1, type: "object" },
+          { Input: 2, type: "object" },
+        ],
+      },
+    });
+  });
+
+  it("builds host event cancellation and attendee cancelled-refund claim calls", () => {
+    const cancelTx = buildCancelEventTransaction(config, { eventObjectId });
+    expect(cancelTx.getData().commands[0]).toMatchObject({
+      MoveCall: {
+        package: config.packageId,
+        module: "noflake",
+        function: "cancel_event",
+        arguments: [{ Input: 0, type: "object" }],
+      },
+    });
+
+    const claimTx = buildClaimCancelledRefundTransaction(config, {
+      eventObjectId,
+      vaultObjectId,
+      reservationObjectId,
+    });
+    expect(claimTx.getData().commands[0]).toMatchObject({
+      MoveCall: {
+        package: config.packageId,
+        module: "noflake",
+        function: "claim_cancelled_refund",
+        typeArguments: [config.coinType],
+        arguments: [
+          { Input: 0, type: "object" },
+          { Input: 1, type: "object" },
+          { Input: 2, type: "object" },
+        ],
       },
     });
   });

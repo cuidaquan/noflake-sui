@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   Wallet,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCurrentAccount, useCurrentNetwork, useCurrentWallet } from "@mysten/dapp-kit-react";
 import { ConnectButton } from "@mysten/dapp-kit-react/ui";
 import type { DAppKit } from "@mysten/dapp-kit-core";
@@ -22,9 +22,11 @@ import type { EventSnapshot, ReservationSnapshot } from "./api/client";
 import { fetchEventSnapshot } from "./api/client";
 import { createInitialEventState, readInitialEventId, saveLastEventId } from "./event-state";
 import { publicAssetUrl } from "./public-assets";
+import { canUseNativeQrScanner, qrScannerUnavailableReason } from "./qr-scanner";
 import {
   buildCheckInPayload,
   buildCheckInTransaction,
+  buildCancelReservationTransaction,
   buildCreateEventTransaction,
   buildDefaultCreateEventTimes,
   buildReserveTransaction,
@@ -75,6 +77,14 @@ interface CheckInDraftState {
   error: string;
 }
 
+interface BarcodeDetectorLike {
+  detect(source: HTMLVideoElement): Promise<Array<{ rawValue?: string }>>;
+}
+
+interface BarcodeDetectorConstructor {
+  new(options: { formats: string[] }): BarcodeDetectorLike;
+}
+
 const packageId = import.meta.env.VITE_NOFLAKE_PACKAGE_ID ?? "";
 const staticDemoEventId = import.meta.env.VITE_NOFLAKE_DEMO_EVENT_ID ?? "";
 const logoUrl = publicAssetUrl("noflake-logo.png");
@@ -108,6 +118,9 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
     reservation: null,
     error: "Paste a NoFlake check-in QR payload to begin.",
   });
+  const [isScannerActive, setIsScannerActive] = useState(false);
+  const [scannerMessage, setScannerMessage] = useState("Camera scanner idle.");
+  const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
   const [settlementResult, setSettlementResult] = useState<EventSnapshot["settlement"]>(null);
 
   const account = useCurrentAccount({ dAppKit });
@@ -121,6 +134,67 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
     setManualEventId(eventId);
     void loadEventSnapshot(eventId);
   }, []);
+
+  useEffect(() => {
+    if (!isScannerActive) return;
+
+    let stopped = false;
+    let stream: MediaStream | null = null;
+    let animationFrame = 0;
+
+    async function startScanner() {
+      if (!canUseNativeQrScanner(window)) {
+        setScannerMessage(qrScannerUnavailableReason(window));
+        setIsScannerActive(false);
+        return;
+      }
+
+      const video = scannerVideoRef.current;
+      const Detector = (window as unknown as { BarcodeDetector?: BarcodeDetectorConstructor }).BarcodeDetector;
+      if (!video || !Detector) return;
+
+      try {
+        setScannerMessage("Point the camera at a NoFlake QR payload.");
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: { ideal: "environment" } },
+        });
+        video.srcObject = stream;
+        await video.play();
+
+        const detector = new Detector({ formats: ["qr_code"] });
+        const scan = async () => {
+          if (stopped) return;
+          try {
+            const codes = await detector.detect(video);
+            const payload = codes.find((code) => code.rawValue)?.rawValue;
+            if (payload) {
+              handleCheckInPayloadChange(payload);
+              setScannerMessage("QR payload scanned.");
+              setIsScannerActive(false);
+              return;
+            }
+          } catch {
+            setScannerMessage("Scanner could not read this frame. Keep the QR code centered.");
+          }
+          animationFrame = window.requestAnimationFrame(() => void scan());
+        };
+        animationFrame = window.requestAnimationFrame(() => void scan());
+      } catch {
+        setScannerMessage("Camera permission failed. Paste the QR payload instead.");
+        setIsScannerActive(false);
+      }
+    }
+
+    void startScanner();
+
+    return () => {
+      stopped = true;
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      stream?.getTracks().forEach((track) => track.stop());
+      if (scannerVideoRef.current) scannerVideoRef.current.srcObject = null;
+    };
+  }, [isScannerActive, event]);
 
   const selectedReservation =
     event?.reservations.find((reservation) => reservation.objectId === selectedReservationId) ??
@@ -445,6 +519,44 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
     }));
   }
 
+  async function handleCancelReservation(reservation: ReservationSnapshot) {
+    if (!event) {
+      setTxMessage("Cancel reservation: create or load an event first.");
+      setTxState("error");
+      return;
+    }
+
+    if (reservation.status !== "reserved") {
+      setTxMessage("Cancel reservation: only reserved seats can be cancelled.");
+      setTxState("error");
+      return;
+    }
+
+    const result = await execute(
+      buildCancelReservationTransaction(txConfig, {
+        eventObjectId: event.objectId,
+        vaultObjectId: event.vaultObjectId,
+        reservationObjectId: reservation.objectId,
+      }),
+      "Cancel reservation",
+    );
+    if (!result) return;
+
+    setEvent((current) => current ? ({
+      ...current,
+      reservedCount: Math.max(0, current.reservedCount - 1),
+      status: current.status === "full" ? "open" : current.status,
+      reservations: current.reservations.map((item) =>
+        item.objectId === reservation.objectId
+          ? { ...item, status: "cancelled", updatedDigest: result.digest }
+          : item,
+      ),
+      updatedDigest: result.digest,
+    }) : current);
+    setTxState("success");
+    setTxMessage(`Cancel reservation: ${formatUsdcAmountFromAtomicUnits(reservation.depositAmount)} USDC refund submitted.`);
+  }
+
   async function handleSettle() {
     if (!event) {
       setTxState("error");
@@ -545,8 +657,13 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
             createEventForm={createEventForm}
             createdEvent={createdEvent}
             checkInDraft={checkInDraft}
+            scannerVideoRef={scannerVideoRef}
+            isScannerActive={isScannerActive}
+            scannerMessage={scannerMessage}
             onCreateEventFormChange={setCreateEventForm}
             onCheckInPayloadChange={handleCheckInPayloadChange}
+            onStartScanner={() => setIsScannerActive(true)}
+            onStopScanner={() => setIsScannerActive(false)}
             onSelectReservation={setSelectedReservationId}
             onCreateEvent={handleCreateEvent}
             onSettle={handleSettle}
@@ -557,7 +674,14 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
         ) : viewMode === "event" ? (
           event ? <PublicEvent event={event} onReserve={handleReserve} /> : <NoEventLoaded view="event" />
         ) : (
-          event && selectedReservation ? <ReservationPage event={event} reservation={selectedReservation} /> : <NoEventLoaded view="reservation" />
+          event && selectedReservation ? (
+            <ReservationPage
+              event={event}
+              reservation={selectedReservation}
+              accountAddress={account?.address ?? null}
+              onCancelReservation={handleCancelReservation}
+            />
+          ) : <NoEventLoaded view="reservation" />
         )}
       </section>
     </main>
@@ -600,8 +724,13 @@ function HostDashboard({
   createEventForm,
   createdEvent,
   checkInDraft,
+  scannerVideoRef,
+  isScannerActive,
+  scannerMessage,
   onCreateEventFormChange,
   onCheckInPayloadChange,
+  onStartScanner,
+  onStopScanner,
   onSelectReservation,
   onCreateEvent,
   onCheckIn,
@@ -614,8 +743,13 @@ function HostDashboard({
   createEventForm: CreateEventFormState;
   createdEvent: CreatedEventState | null;
   checkInDraft: CheckInDraftState;
+  scannerVideoRef: React.RefObject<HTMLVideoElement | null>;
+  isScannerActive: boolean;
+  scannerMessage: string;
   onCreateEventFormChange: (form: CreateEventFormState) => void;
   onCheckInPayloadChange: (rawPayload: string) => void;
+  onStartScanner: () => void;
+  onStopScanner: () => void;
   onSelectReservation: (reservationId: string) => void;
   onCreateEvent: () => void;
   onCheckIn: (reservation: ReservationSnapshot) => void;
@@ -699,6 +833,21 @@ function HostDashboard({
 
       <section className="control-panel checkin-console">
         <PanelTitle icon={<ScanLine size={18} />} title="Check-in mode" />
+        <div className={isScannerActive ? "scanner active" : "scanner"}>
+          <video ref={scannerVideoRef} muted playsInline aria-label="QR scanner camera preview" />
+          <div className="scan-bars" />
+          <strong>{scannerMessage}</strong>
+        </div>
+        <div className="scanner-actions">
+          <button className="secondary-action compact-action" onClick={onStartScanner} disabled={isScannerActive}>
+            <ScanLine size={16} />
+            Scan QR
+          </button>
+          <button className="secondary-action compact-action" onClick={onStopScanner} disabled={!isScannerActive}>
+            <RefreshCw size={16} />
+            Stop
+          </button>
+        </div>
         <label className="dark-label">
           QR payload
           <textarea
@@ -859,12 +1008,24 @@ function PublicEvent({ event, onReserve }: { event: EventSnapshot; onReserve: ()
   );
 }
 
-function ReservationPage({ event, reservation }: { event: EventSnapshot; reservation: ReservationSnapshot }) {
+function ReservationPage({
+  event,
+  reservation,
+  accountAddress,
+  onCancelReservation,
+}: {
+  event: EventSnapshot;
+  reservation: ReservationSnapshot;
+  accountAddress: string | null;
+  onCancelReservation: (reservation: ReservationSnapshot) => void;
+}) {
   const qrPayload = buildCheckInPayload({
     eventObjectId: event.objectId,
     reservationObjectId: reservation.objectId,
     attendeeAddress: reservation.attendeeAddress,
   });
+  const canCancel = reservation.status === "reserved";
+  const isConnectedAttendee = accountAddress?.toLowerCase() === reservation.attendeeAddress.toLowerCase();
 
   return (
     <div className="reservation-layout">
@@ -888,6 +1049,13 @@ function ReservationPage({ event, reservation }: { event: EventSnapshot; reserva
           <span>QR payload</span>
           <strong>{qrPayload}</strong>
         </div>
+        <button className="secondary-action" onClick={() => onCancelReservation(reservation)} disabled={!canCancel || !isConnectedAttendee}>
+          <RefreshCw size={18} />
+          {canCancel ? "Cancel reservation & refund" : "Reservation closed"}
+        </button>
+        {canCancel && !isConnectedAttendee ? (
+          <p className="helper-copy">Connect the attendee wallet that owns this reservation before signing cancellation.</p>
+        ) : null}
       </section>
     </div>
   );

@@ -14,6 +14,7 @@ const SETTLEMENT_MODE_PARTY: u8 = 1;
 
 const STATUS_OPEN: u8 = 0;
 const STATUS_FULL: u8 = 1;
+const STATUS_CANCELLED: u8 = 2;
 const STATUS_SETTLED: u8 = 4;
 
 const RESERVATION_RESERVED: u8 = 0;
@@ -111,6 +112,12 @@ public struct ReservationCancelled has copy, drop {
     refund_amount: u64,
 }
 
+public struct EventCancelled has copy, drop {
+    event_id: ID,
+    host: address,
+    reserved_count: u64,
+}
+
 public struct EventSettled has copy, drop {
     event_id: ID,
     receipt_id: ID,
@@ -159,6 +166,10 @@ public fun event_status(event: &Event): u8 {
 
 public fun event_status_settled(): u8 {
     STATUS_SETTLED
+}
+
+public fun event_status_cancelled(): u8 {
+    STATUS_CANCELLED
 }
 
 public fun receipt_forfeited_amount(receipt: &SettlementReceipt): u64 {
@@ -277,6 +288,7 @@ public fun check_in<T>(
     ctx: &mut TxContext,
 ) {
     assert!(tx_context::sender(ctx) == event.host, E_NOT_HOST);
+    assert!(event.status == STATUS_OPEN || event.status == STATUS_FULL, E_EVENT_CLOSED);
     assert!(vault.event_id == object::id(event), E_WRONG_EVENT);
     assert!(reservation.event_id == object::id(event), E_WRONG_EVENT);
     assert!(reservation.status == RESERVATION_RESERVED, E_INVALID_RESERVATION_STATUS);
@@ -332,6 +344,53 @@ public fun cancel_reservation<T>(
     transfer::public_transfer(refund, reservation.attendee);
 }
 
+public fun cancel_event(
+    event: &mut Event,
+    ctx: &mut TxContext,
+) {
+    assert!(tx_context::sender(ctx) == event.host, E_NOT_HOST);
+    assert!(event.status == STATUS_OPEN || event.status == STATUS_FULL, E_EVENT_CLOSED);
+
+    event.status = STATUS_CANCELLED;
+
+    event::emit(EventCancelled {
+        event_id: object::id(event),
+        host: event.host,
+        reserved_count: event.reserved_count,
+    });
+}
+
+public fun claim_cancelled_refund<T>(
+    event: &mut Event,
+    vault: &mut EventVault<T>,
+    reservation: &mut Reservation,
+    ctx: &mut TxContext,
+) {
+    assert!(event.status == STATUS_CANCELLED, E_EVENT_CLOSED);
+    assert!(tx_context::sender(ctx) == reservation.attendee, E_NOT_HOST);
+    assert!(vault.event_id == object::id(event), E_WRONG_EVENT);
+    assert!(reservation.event_id == object::id(event), E_WRONG_EVENT);
+    assert!(reservation.status == RESERVATION_RESERVED, E_INVALID_RESERVATION_STATUS);
+    let (registered, attendee_index) = event.registered_attendees.index_of(&reservation.attendee);
+    assert!(registered, E_INVALID_RESERVATION_STATUS);
+    event.registered_attendees.remove(attendee_index);
+
+    let refund_amount = reservation.deposit_amount;
+    let refund = coin::take(&mut vault.balance, refund_amount, ctx);
+
+    reservation.status = RESERVATION_CANCELLED;
+    event.reserved_count = event.reserved_count - 1;
+
+    event::emit(ReservationCancelled {
+        event_id: object::id(event),
+        reservation_id: object::id(reservation),
+        attendee: reservation.attendee,
+        refund_amount,
+    });
+
+    transfer::public_transfer(refund, reservation.attendee);
+}
+
 public fun settle_event<T>(
     event: &mut Event,
     vault: &mut EventVault<T>,
@@ -340,7 +399,7 @@ public fun settle_event<T>(
 ) {
     assert!(tx_context::sender(ctx) == event.host, E_NOT_HOST);
     assert!(vault.event_id == object::id(event), E_WRONG_EVENT);
-    assert!(event.status != STATUS_SETTLED, E_EVENT_CLOSED);
+    assert!(event.status == STATUS_OPEN || event.status == STATUS_FULL, E_EVENT_CLOSED);
     assert!(clock::timestamp_ms(clock) >= event.end_ms, E_EVENT_NOT_ENDED);
 
     let remaining = vault.balance.value();

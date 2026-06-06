@@ -7,6 +7,7 @@ const EVENT_TYPES = [
   "EventCreated",
   "ReservationCreated",
   "ReservationCancelled",
+  "EventCancelled",
   "CheckedInAndRefunded",
   "EventSettled",
 ] as const;
@@ -153,6 +154,15 @@ function applyEvent(state: IndexState, targetEventId: string, event: SuiEvent): 
   }
 
   if (!state.event) return;
+
+  if (eventType === "EventCancelled") {
+    updateEvent(state, {
+      reservedCount: numberField(data, "reserved_count"),
+      status: "cancelled",
+      updatedDigest: event.id.txDigest,
+    });
+    return;
+  }
 
   if (eventType === "ReservationCreated") {
     const reservation: ReservationSnapshot = {

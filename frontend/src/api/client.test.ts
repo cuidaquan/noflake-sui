@@ -69,6 +69,7 @@ describe("frontend api client", () => {
       .mockResolvedValueOnce(suiRpcResponse([]))
       .mockResolvedValueOnce(suiRpcResponse([]))
       .mockResolvedValueOnce(suiRpcResponse([]))
+      .mockResolvedValueOnce(suiRpcResponse([]))
       .mockResolvedValueOnce(suiRpcResponse([]));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -77,7 +78,7 @@ describe("frontend api client", () => {
       vaultObjectId: "0xvault",
       title: "Demo Dinner",
     });
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
     expect(fetchMock.mock.calls.every(([input]) => !String(input).includes("/events/"))).toBe(true);
   });
 
@@ -91,11 +92,12 @@ describe("frontend api client", () => {
       .mockResolvedValueOnce(suiRpcResponse([]))
       .mockResolvedValueOnce(suiRpcResponse([]))
       .mockResolvedValueOnce(suiRpcResponse([]))
+      .mockResolvedValueOnce(suiRpcResponse([]))
       .mockResolvedValueOnce(Response.json(demoEvent));
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(fetchEventSnapshot("0xdemo")).resolves.toEqual(demoEvent);
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
     expect(fetchMock).toHaveBeenLastCalledWith("/demo-event.json");
   });
 

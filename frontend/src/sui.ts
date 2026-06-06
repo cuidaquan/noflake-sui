@@ -393,6 +393,71 @@ export function buildCheckInTransaction(
   return tx;
 }
 
+export function buildCancelReservationTransaction(
+  config: NoFlakeTxConfig,
+  input: {
+    eventObjectId: string;
+    vaultObjectId: string;
+    reservationObjectId: string;
+  },
+): Transaction {
+  const tx = new Transaction();
+  tx.setGasBudget(config.gasBudget ?? DEFAULT_GAS_BUDGET);
+  tx.moveCall({
+    package: config.packageId,
+    module: "noflake",
+    function: "cancel_reservation",
+    typeArguments: [config.coinType],
+    arguments: [
+      tx.object(input.eventObjectId),
+      tx.object(input.vaultObjectId),
+      tx.object(input.reservationObjectId),
+    ],
+  });
+  return tx;
+}
+
+export function buildCancelEventTransaction(
+  config: NoFlakeTxConfig,
+  input: {
+    eventObjectId: string;
+  },
+): Transaction {
+  const tx = new Transaction();
+  tx.setGasBudget(config.gasBudget ?? DEFAULT_GAS_BUDGET);
+  tx.moveCall({
+    package: config.packageId,
+    module: "noflake",
+    function: "cancel_event",
+    arguments: [tx.object(input.eventObjectId)],
+  });
+  return tx;
+}
+
+export function buildClaimCancelledRefundTransaction(
+  config: NoFlakeTxConfig,
+  input: {
+    eventObjectId: string;
+    vaultObjectId: string;
+    reservationObjectId: string;
+  },
+): Transaction {
+  const tx = new Transaction();
+  tx.setGasBudget(config.gasBudget ?? DEFAULT_GAS_BUDGET);
+  tx.moveCall({
+    package: config.packageId,
+    module: "noflake",
+    function: "claim_cancelled_refund",
+    typeArguments: [config.coinType],
+    arguments: [
+      tx.object(input.eventObjectId),
+      tx.object(input.vaultObjectId),
+      tx.object(input.reservationObjectId),
+    ],
+  });
+  return tx;
+}
+
 export function buildSettleEventTransaction(
   config: NoFlakeTxConfig,
   input: {

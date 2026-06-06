@@ -268,6 +268,92 @@ fun attendee_can_cancel_reservation_and_get_refund() {
     scenario.end();
 }
 
+#[test]
+fun host_can_cancel_event_and_attendee_can_claim_refund() {
+    let host = @0xA;
+    let attendee = @0xB;
+    let mut scenario = test_scenario::begin(host);
+
+    noflake::create_event<TEST_USDC>(
+        string::utf8(b"Sui Builder Dinner"),
+        1_000,
+        2_000,
+        20,
+        2,
+        noflake::settlement_mode_strict(),
+        scenario.ctx(),
+    );
+
+    scenario.next_tx(attendee);
+    let mut event = scenario.take_shared<noflake::Event>();
+    let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
+    let deposit = coin::mint_for_testing<TEST_USDC>(20, scenario.ctx());
+    noflake::reserve(&mut event, &mut vault, deposit, scenario.ctx());
+    test_scenario::return_shared(event);
+    test_scenario::return_shared(vault);
+
+    scenario.next_tx(host);
+    let mut event = scenario.take_shared<noflake::Event>();
+    noflake::cancel_event(&mut event, scenario.ctx());
+    assert!(noflake::event_status(&event) == noflake::event_status_cancelled());
+    test_scenario::return_shared(event);
+
+    scenario.next_tx(attendee);
+    let mut event = scenario.take_shared<noflake::Event>();
+    let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
+    let mut reservation = scenario.take_shared<noflake::Reservation>();
+    noflake::claim_cancelled_refund(&mut event, &mut vault, &mut reservation, scenario.ctx());
+
+    assert!(noflake::reservation_status(&reservation) == noflake::reservation_status_cancelled());
+    assert!(noflake::reserved_count(&event) == 0);
+    assert!(noflake::vault_balance(&vault) == 0);
+
+    test_scenario::return_shared(event);
+    test_scenario::return_shared(vault);
+    test_scenario::return_shared(reservation);
+
+    scenario.next_tx(attendee);
+    let refund = scenario.take_from_sender<coin::Coin<TEST_USDC>>();
+    assert!(coin::value(&refund) == 20);
+    coin::burn_for_testing(refund);
+
+    scenario.end();
+}
+
+#[test, expected_failure]
+fun cancelled_event_cannot_be_settled() {
+    let host = @0xA;
+    let mut scenario = test_scenario::begin(host);
+    scenario.create_system_objects();
+
+    noflake::create_event<TEST_USDC>(
+        string::utf8(b"Sui Builder Dinner"),
+        1_000,
+        2_000,
+        20,
+        1,
+        noflake::settlement_mode_strict(),
+        scenario.ctx(),
+    );
+
+    scenario.next_tx(host);
+    let mut event = scenario.take_shared<noflake::Event>();
+    noflake::cancel_event(&mut event, scenario.ctx());
+    test_scenario::return_shared(event);
+
+    scenario.next_tx(host);
+    let mut event = scenario.take_shared<noflake::Event>();
+    let mut vault = scenario.take_shared<noflake::EventVault<TEST_USDC>>();
+    let mut clock = scenario.take_shared<Clock>();
+    clock.set_for_testing(2_000);
+    noflake::settle_event(&mut event, &mut vault, &clock, scenario.ctx());
+
+    test_scenario::return_shared(event);
+    test_scenario::return_shared(vault);
+    test_scenario::return_shared(clock);
+    scenario.end();
+}
+
 #[test, expected_failure]
 fun event_rejects_reservation_after_capacity_is_full() {
     let host = @0xA;

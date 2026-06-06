@@ -139,6 +139,43 @@ describe("Sui event snapshot indexer", () => {
       client,
     })).resolves.toBeNull();
   });
+
+  it("marks an event cancelled from EventCancelled move events", async () => {
+    const targetEventId = "0xevent";
+    const client = fakeEventClient({
+      EventCreated: [
+        event("EventCreated", "create-digest", {
+          event_id: targetEventId,
+          vault_id: "0xvault",
+          host: "0xhost",
+          title: "Sui Builder Dinner",
+          start_ms: "10",
+          end_ms: "20",
+          deposit_amount: "20000000",
+          seat_count: "3",
+          settlement_mode: 0,
+        }),
+      ],
+      EventCancelled: [
+        event("EventCancelled", "cancel-digest", {
+          event_id: targetEventId,
+          host: "0xhost",
+          reserved_count: "2",
+        }),
+      ],
+    });
+
+    await expect(fetchEventSnapshotFromSuiEvents({
+      eventId: targetEventId,
+      packageId: "0xpackage",
+      client,
+    })).resolves.toMatchObject({
+      objectId: targetEventId,
+      status: "cancelled",
+      reservedCount: 2,
+      updatedDigest: "cancel-digest",
+    });
+  });
 });
 
 function fakeEventClient(eventsByName: Partial<Record<string, SuiEvent[]>>): SuiEventClient {
