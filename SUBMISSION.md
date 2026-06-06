@@ -16,6 +16,7 @@ NoFlake fits this track because it builds a real-world payment workflow on Sui: 
 
 - Live demo: https://cuidaquan.github.io/noflake-sui/
 - Demo video: https://youtu.be/CmTM3TNDI-8
+- DeepSurge project: https://www.deepsurge.xyz/projects/3c9d48b4-d0c4-4a4f-904a-4a6e91e7bd23
 - Source code: https://github.com/cuidaquan/noflake-sui
 - Sui Overflow 2026: https://overflow.sui.io/
 
@@ -128,4 +129,4 @@ NoFlake is intentionally focused: programmable RSVP deposits, immediate refunds,
 - [x] Zero-cost frontend deployment
 - [x] Demo video script
 - [x] Final recorded demo video URL: https://youtu.be/CmTM3TNDI-8
-- [ ] Final Sui Overflow submission form
+- [x] Final Sui Overflow submission form: https://www.deepsurge.xyz/projects/3c9d48b4-d0c4-4a4f-904a-4a6e91e7bd23
