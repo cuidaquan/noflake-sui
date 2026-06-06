@@ -9,6 +9,7 @@ Primary hackathon track: `DeFi & Payments`
 ## Submission Quick Links
 
 - Live demo: https://cuidaquan.github.io/noflake-sui/
+- Demo video: https://youtu.be/CmTM3TNDI-8
 - Hackathon submission guide: [SUBMISSION.md](SUBMISSION.md)
 - Source repository: https://github.com/cuidaquan/noflake-sui
 - Sui testnet package: `0xd4936b362763713dd61fe8bb17fb6c80857ab8a96e91f132ab3f57970ebd37ef`
