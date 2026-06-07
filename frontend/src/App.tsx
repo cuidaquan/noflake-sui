@@ -106,6 +106,25 @@ function decodeQrPayloadFromVideoFrame(
   );
 }
 
+async function decodeQrPayloadFromImageFile(file: File): Promise<string | null> {
+  const image = await createImageBitmap(file);
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+
+    context.drawImage(image, 0, 0);
+    return decodeQrPayloadFromImageData(
+      context.getImageData(0, 0, canvas.width, canvas.height),
+      (data, width, height) => jsQR(data, width, height, { inversionAttempts: "attemptBoth" }),
+    );
+  } finally {
+    image.close();
+  }
+}
+
 const packageId = import.meta.env.VITE_NOFLAKE_PACKAGE_ID ?? "";
 const staticDemoEventId = import.meta.env.VITE_NOFLAKE_DEMO_EVENT_ID ?? "";
 const logoUrl = publicAssetUrl("noflake-logo.png");
@@ -514,6 +533,25 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
     }
   }
 
+  async function handleQrImageUpload(file: File | null) {
+    if (!file) return;
+
+    try {
+      setScannerMessage("Reading QR image.");
+      const payload = await decodeQrPayloadFromImageFile(file);
+      if (!payload) {
+        setScannerMessage("No QR payload found in that image. Try a closer crop or paste the payload.");
+        return;
+      }
+
+      handleCheckInPayloadChange(payload);
+      setScannerMessage("QR payload scanned from image.");
+      setIsScannerActive(false);
+    } catch {
+      setScannerMessage("QR image could not be read. Paste the payload instead.");
+    }
+  }
+
   async function handleCheckIn(reservation: ReservationSnapshot) {
     if (!event) {
       setTxMessage("Check in: create or load an event first.");
@@ -762,6 +800,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
             onCheckInPayloadChange={handleCheckInPayloadChange}
             onStartScanner={() => setIsScannerActive(true)}
             onStopScanner={() => setIsScannerActive(false)}
+            onQrImageUpload={(file) => void handleQrImageUpload(file)}
             onSelectReservation={setSelectedReservationId}
             onCreateEvent={handleCreateEvent}
             onSettle={handleSettle}
@@ -831,6 +870,7 @@ function HostDashboard({
   onCheckInPayloadChange,
   onStartScanner,
   onStopScanner,
+  onQrImageUpload,
   onSelectReservation,
   onCreateEvent,
   onCheckIn,
@@ -851,6 +891,7 @@ function HostDashboard({
   onCheckInPayloadChange: (rawPayload: string) => void;
   onStartScanner: () => void;
   onStopScanner: () => void;
+  onQrImageUpload: (file: File | null) => void;
   onSelectReservation: (reservationId: string) => void;
   onCreateEvent: () => void;
   onCheckIn: (reservation: ReservationSnapshot) => void;
@@ -949,6 +990,18 @@ function HostDashboard({
             <RefreshCw size={16} />
             Stop
           </button>
+          <label className="secondary-action compact-action upload-action">
+            <QrCode size={16} />
+            Upload QR image
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(event) => {
+                onQrImageUpload(event.currentTarget.files?.[0] ?? null);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
         </div>
         <label className="dark-label">
           QR payload

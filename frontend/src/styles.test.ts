@@ -18,4 +18,10 @@ describe("frontend styles", () => {
   it("renders reservation QR codes large enough for camera scanning", () => {
     expect(appSource).toContain("<QRCodeSVG value={qrPayload} size={288} level=\"L\"");
   });
+
+  it("offers QR image upload as a stable check-in fallback", () => {
+    expect(appSource).toContain("Upload QR image");
+    expect(appSource).toContain("accept=\"image/*\"");
+    expect(styles).toMatch(/\.upload-action input\s*\{[^}]*display:\s*none;/s);
+  });
 });

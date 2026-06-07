@@ -467,6 +467,10 @@ button:disabled {
   flex-wrap: wrap;
 }
 
+.upload-action input {
+  display: none;
+}
+
 @keyframes scan {
   from {
     transform: translateY(-28px);
