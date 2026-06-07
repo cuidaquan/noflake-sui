@@ -18,12 +18,13 @@ import { ConnectButton } from "@mysten/dapp-kit-react/ui";
 import type { DAppKit } from "@mysten/dapp-kit-core";
 import type { Transaction } from "@mysten/sui/transactions";
 import type { SuiJsonRpcClient } from "@mysten/sui/jsonRpc";
+import jsQR from "jsqr";
 import { QRCodeSVG } from "qrcode.react";
 import type { EventSnapshot, ReservationSnapshot } from "./api/client";
 import { fetchEventSnapshot } from "./api/client";
 import { createInitialEventState, readInitialEventId, saveLastEventId } from "./event-state";
 import { publicAssetUrl } from "./public-assets";
-import { canUseNativeQrScanner, qrScannerUnavailableReason } from "./qr-scanner";
+import { canUseCameraQrScanner, decodeQrPayloadFromImageData, qrScannerUnavailableReason } from "./qr-scanner";
 import {
   buildCheckInPayload,
   buildCheckInTransaction,
@@ -88,6 +89,23 @@ interface BarcodeDetectorConstructor {
   new(options: { formats: string[] }): BarcodeDetectorLike;
 }
 
+function decodeQrPayloadFromVideoFrame(
+  video: HTMLVideoElement,
+  canvas: HTMLCanvasElement,
+  context: CanvasRenderingContext2D,
+): string | null {
+  if (!video.videoWidth || !video.videoHeight) return null;
+
+  if (canvas.width !== video.videoWidth) canvas.width = video.videoWidth;
+  if (canvas.height !== video.videoHeight) canvas.height = video.videoHeight;
+
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  return decodeQrPayloadFromImageData(
+    context.getImageData(0, 0, canvas.width, canvas.height),
+    (data, width, height) => jsQR(data, width, height, { inversionAttempts: "attemptBoth" }),
+  );
+}
+
 const packageId = import.meta.env.VITE_NOFLAKE_PACKAGE_ID ?? "";
 const staticDemoEventId = import.meta.env.VITE_NOFLAKE_DEMO_EVENT_ID ?? "";
 const logoUrl = publicAssetUrl("noflake-logo.png");
@@ -146,7 +164,7 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
     let animationFrame = 0;
 
     async function startScanner() {
-      if (!canUseNativeQrScanner(window)) {
+      if (!canUseCameraQrScanner(window)) {
         setScannerMessage(qrScannerUnavailableReason(window));
         setIsScannerActive(false);
         return;
@@ -154,7 +172,15 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
 
       const video = scannerVideoRef.current;
       const Detector = (window as unknown as { BarcodeDetector?: BarcodeDetectorConstructor }).BarcodeDetector;
-      if (!video || !Detector) return;
+      if (!video) return;
+
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!Detector && !context) {
+        setScannerMessage(qrScannerUnavailableReason(window, false));
+        setIsScannerActive(false);
+        return;
+      }
 
       try {
         setScannerMessage("Point the camera at a NoFlake QR payload.");
@@ -165,12 +191,14 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
         video.srcObject = stream;
         await video.play();
 
-        const detector = new Detector({ formats: ["qr_code"] });
+        const detector = Detector ? new Detector({ formats: ["qr_code"] }) : null;
         const scan = async () => {
           if (stopped) return;
           try {
-            const codes = await detector.detect(video);
-            const payload = codes.find((code) => code.rawValue)?.rawValue;
+            const nativeCodes = detector ? await detector.detect(video) : [];
+            const payload =
+              nativeCodes.find((code) => code.rawValue)?.rawValue ??
+              (context ? decodeQrPayloadFromVideoFrame(video, canvas, context) : null);
             if (payload) {
               handleCheckInPayloadChange(payload);
               setScannerMessage("QR payload scanned.");
