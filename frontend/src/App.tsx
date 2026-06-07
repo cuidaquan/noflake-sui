@@ -1140,7 +1140,7 @@ function ReservationPage({
     <div className="reservation-layout">
       <section className="qr-card">
         <div className="qr-frame">
-          <QRCodeSVG value={qrPayload} size={196} level="M" bgColor="#f4f1df" fgColor="#20251f" />
+          <QRCodeSVG value={qrPayload} size={288} level="L" bgColor="#f4f1df" fgColor="#20251f" />
         </div>
         <p>{reservation.objectId}</p>
       </section>

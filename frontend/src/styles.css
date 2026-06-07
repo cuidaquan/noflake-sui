@@ -441,7 +441,7 @@ button:disabled {
 }
 
 .scanner.active video {
-  opacity: 0.72;
+  opacity: 1;
 }
 
 .scanner strong {
@@ -455,8 +455,9 @@ button:disabled {
 .scan-bars {
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(0deg, transparent 0 16px, rgba(255, 221, 88, 0.22) 16px 18px);
+  background: repeating-linear-gradient(0deg, transparent 0 16px, rgba(255, 221, 88, 0.12) 16px 18px);
   animation: scan 2.6s linear infinite;
+  pointer-events: none;
 }
 
 .scanner-actions {

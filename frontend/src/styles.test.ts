@@ -3,9 +3,19 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const styles = readFileSync(resolve(__dirname, "styles.css"), "utf8");
+const appSource = readFileSync(resolve(__dirname, "App.tsx"), "utf8");
 
 describe("frontend styles", () => {
   it("wraps long reservation detail values inside the card", () => {
     expect(styles).toMatch(/\.detail-list strong\s*\{[^}]*min-width:\s*0;[^}]*overflow-wrap:\s*anywhere;/s);
+  });
+
+  it("keeps the live scanner camera preview visible while scanning", () => {
+    expect(styles).toMatch(/\.scanner\.active video\s*\{[^}]*opacity:\s*1;/s);
+    expect(styles).toMatch(/\.scan-bars\s*\{[^}]*rgba\(255,\s*221,\s*88,\s*0\.12\)/s);
+  });
+
+  it("renders reservation QR codes large enough for camera scanning", () => {
+    expect(appSource).toContain("<QRCodeSVG value={qrPayload} size={288} level=\"L\"");
   });
 });
