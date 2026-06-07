@@ -205,7 +205,11 @@ export default function App({ dAppKit }: { dAppKit: DAppKit<any> }) {
         setScannerMessage("Point the camera at a NoFlake QR payload.");
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { facingMode: { ideal: "environment" } },
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
         });
         video.srcObject = stream;
         await video.play();
@@ -979,8 +983,8 @@ function HostDashboard({
         <div className={isScannerActive ? "scanner active" : "scanner"}>
           <video ref={scannerVideoRef} muted playsInline aria-label="QR scanner camera preview" />
           <div className="scan-bars" />
-          <strong>{scannerMessage}</strong>
         </div>
+        <strong className="scanner-status">{scannerMessage}</strong>
         <div className="scanner-actions">
           <button className="secondary-action compact-action" onClick={onStartScanner} disabled={isScannerActive}>
             <ScanLine size={16} />

@@ -13,6 +13,8 @@ describe("frontend styles", () => {
   it("keeps the live scanner camera preview visible while scanning", () => {
     expect(styles).toMatch(/\.scanner\.active video\s*\{[^}]*opacity:\s*1;/s);
     expect(styles).toMatch(/\.scan-bars\s*\{[^}]*rgba\(255,\s*221,\s*88,\s*0\.12\)/s);
+    expect(appSource).toContain("className=\"scanner-status\"");
+    expect(styles).toMatch(/\.scanner-status\s*\{[^}]*display:\s*block;/s);
   });
 
   it("renders reservation QR codes large enough for camera scanning", () => {

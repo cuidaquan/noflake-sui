@@ -61,4 +61,25 @@ describe("native QR scanner capability", () => {
     expect(payload).toBe("noflake_check_in_payload");
     expect(decodeQrPayloadFromImageData(imageData, () => null)).toBeNull();
   });
+
+  it("tries center crops when the full camera frame does not decode", () => {
+    const imageData = {
+      data: new Uint8ClampedArray(8 * 8 * 4),
+      width: 8,
+      height: 8,
+    } as ImageData;
+    const attempts: Array<{ width: number; height: number }> = [];
+
+    const payload = decodeQrPayloadFromImageData(imageData, (_data, width, height) => {
+      attempts.push({ width, height });
+      return width === 6 && height === 6 ? { data: "centered_qr_payload" } : null;
+    });
+
+    expect(payload).toBe("centered_qr_payload");
+    expect(attempts).toEqual([
+      { width: 8, height: 8 },
+      { width: 7, height: 7 },
+      { width: 6, height: 6 },
+    ]);
+  });
 });
