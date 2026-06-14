@@ -1,5 +1,7 @@
 # NoFlake Sui Overflow 2026 Submission
 
+Updated for resubmission: 2026-06-14.
+
 ## Project
 
 NoFlake is a Sui-native programmable RSVP deposit settlement layer for small community events.
@@ -19,6 +21,14 @@ NoFlake fits this track because it builds a real-world payment workflow on Sui: 
 - DeepSurge project: https://www.deepsurge.xyz/projects/3c9d48b4-d0c4-4a4f-904a-4a6e91e7bd23
 - Source code: https://github.com/cuidaquan/noflake-sui
 - Sui Overflow 2026: https://overflow.sui.io/
+
+## Resubmission Highlights
+
+- Zero-cost deployed app: static GitHub Pages frontend, browser-side Sui RPC event indexing, no backend server or database.
+- Current callable package v2 is deployed on Sui testnet and supports attendee cancellation plus host event cancellation refund flows.
+- Strict Mode has been covered by Move tests and a real CLI wallet testnet E2E settlement.
+- Check-in supports camera QR scanning, JS QR frame decoding, QR screenshot upload, and manual payload paste.
+- Latest GitHub Pages deployment includes the camera-scanning improvements from `6fcda33 fix: strengthen camera qr scanning`.
 
 ## Testnet Proof
 
@@ -46,7 +56,9 @@ Explorer links:
 - Lets attendees reserve a seat with stablecoin deposits.
 - Holds deposits in a Move vault instead of a backend-controlled account.
 - Gives attendees reservation objects and QR check-in payloads.
-- Lets the host check in attendees and refund deposits immediately.
+- Lets the host scan, upload, or paste check-in payloads and refund deposits immediately.
+- Lets attendees cancel their own reservations before the event.
+- Lets hosts cancel an event and lets attendees claim cancelled-event refunds.
 - Settles no-show deposits after the event using either Strict Mode or Party Mode.
 - Shows object IDs, transaction digests, and Sui Explorer links for verification.
 
@@ -64,7 +76,7 @@ The Move package owns the payment rules:
 
 ## Demo Video Structure
 
-Target length: 2-3 minutes.
+Recorded length: 4:28.
 
 1. Problem: free RSVPs create unreliable attendance and wasted seats.
 2. Solution: NoFlake uses refundable deposits on Sui to turn RSVP into a credible commitment.
@@ -99,6 +111,7 @@ NoFlake is intentionally focused: programmable RSVP deposits, immediate refunds,
 - TypeScript 5.9
 - Mysten dApp Kit React
 - Mysten Sui SDK
+- jsQR
 - GitHub Pages
 
 ## Challenges
@@ -106,16 +119,18 @@ NoFlake is intentionally focused: programmable RSVP deposits, immediate refunds,
 - Keeping the settlement logic simple enough to demo while still using real Move vault custody.
 - Making a static frontend reliable without a backend indexer.
 - Producing a settled demo state that judges can inspect quickly without waiting for a live event timeline.
-- Keeping the QR check-in flow demo-friendly while preserving wallet-confirmed transactions.
+- Keeping the QR check-in flow demo-friendly across browsers and cameras while preserving wallet-confirmed transactions.
 
 ## Accomplishments
 
 - Published a Sui testnet Move package.
 - Implemented deposit-backed reservations and immediate check-in refunds.
 - Implemented Party Mode settlement where no-show deposits reward checked-in attendees.
+- Verified Strict Mode settlement in a real testnet CLI wallet E2E.
 - Added cancellation flows for attendee-initiated reservation refunds and host-cancelled event refunds.
 - Removed the backend and deployed the app with zero server cost.
 - Added browser-side Sui event indexing with a static demo fallback.
+- Added robust check-in fallbacks: native camera scanning, JS frame decoding, QR screenshot upload, and manual payload paste.
 
 ## Next Steps
 
@@ -134,3 +149,4 @@ NoFlake is intentionally focused: programmable RSVP deposits, immediate refunds,
 - [x] Demo video script
 - [x] Final recorded demo video URL: https://youtu.be/CmTM3TNDl-8
 - [x] Final Sui Overflow submission form: https://www.deepsurge.xyz/projects/3c9d48b4-d0c4-4a4f-904a-4a6e91e7bd23
+- [x] Resubmission materials refreshed after cancellation, Strict Mode E2E, and QR fallback improvements

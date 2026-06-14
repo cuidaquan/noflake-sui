@@ -20,7 +20,7 @@ Primary hackathon track: `DeFi & Payments`
 2. Attendee reserves a seat with Circle testnet USDC.
 3. The deposit is held in an event-specific Move vault.
 4. Attendee receives a reservation object and a check-in QR payload.
-5. Host pastes or scans the payload, reviews a confirmation screen, and signs check-in.
+5. Host scans, uploads, or pastes the QR payload, reviews a confirmation screen, and signs check-in.
 6. Check-in immediately refunds the attendee deposit.
 7. Host settles the event and no-show deposits are distributed by the selected mode.
 8. The app shows transaction digests, object ids, and Sui Explorer links.
@@ -73,6 +73,7 @@ noflake-sui/
 - Mysten dApp Kit React 2.0.3
 - Mysten Sui SDK 2.17.0
 - Vitest 4
+- jsQR 1.4.0 for browser-side QR image decoding
 
 ## Testnet Deployment
 
@@ -188,7 +189,7 @@ Recommended demo:
 2. Set `20 USDC` deposit, `3` seats, `Party Mode`.
 3. Reserve seats from attendee wallets.
 4. Open the reservation page and show the QR payload.
-5. Host pastes the QR payload in check-in mode.
+5. Host scans, uploads, or pastes the QR payload in check-in mode.
 6. Host confirms `Check-in & refund`.
 7. Attendee deposit is refunded immediately.
 8. Leave one attendee as no-show.
@@ -217,7 +218,7 @@ Included:
 - Event creation
 - Stablecoin deposit reservation
 - Reservation object and QR payload
-- Camera-based QR scanning with manual paste fallback
+- Camera-based QR scanning with JS decoder fallback, QR image upload, and manual paste fallback
 - Host check-in confirmation
 - Immediate check-in refund
 - Attendee reservation cancellation and host event cancellation refund flows
@@ -240,7 +241,7 @@ Excluded from MVP:
 
 - Demo events should be small, around `3-5` attendees.
 - `undo_check_in` is intentionally not supported. Hosts must verify the confirmation screen before signing.
-- Camera QR scanning uses the browser `BarcodeDetector` and falls back to manual QR payload paste when unsupported.
+- Camera QR scanning first uses browser-native detection when available, then falls back to JS frame decoding. If camera scanning is unreliable, hosts can upload a QR screenshot or paste the payload manually.
 - Duplicate reservation prevention is enforced on-chain, and attendees can rejoin after a cancel.
 - Settlement is gated by the event end time, so hosts cannot settle early.
 
